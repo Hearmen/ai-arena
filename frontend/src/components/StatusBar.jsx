@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Status bar showing backend connection status
@@ -7,25 +7,37 @@ export default function StatusBar() {
   const [status, setStatus] = useState('checking');
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkBackend = async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       try {
         const response = await fetch('http://localhost:8000/health', {
           method: 'GET',
-          signal: AbortSignal.timeout(3000),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+        if (!isMounted) return;
         if (response.ok) {
           setStatus('connected');
         } else {
           setStatus('error');
         }
       } catch {
+        clearTimeout(timeoutId);
+        if (!isMounted) return;
         setStatus('disconnected');
       }
     };
 
     checkBackend();
     const interval = setInterval(checkBackend, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const statusConfig = {

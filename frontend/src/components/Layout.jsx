@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * Main layout component — side-by-side iframes for ChatGPT and Kimi
  */
@@ -16,6 +14,7 @@ export default function Layout() {
           <iframe
             src="https://chatgpt.com"
             title="ChatGPT"
+            className="w-full h-full"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
         </div>
@@ -31,6 +30,7 @@ export default function Layout() {
           <iframe
             src="https://moonshot.cn"
             title="Kimi"
+            className="w-full h-full"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
         </div>
