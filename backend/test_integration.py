@@ -1,12 +1,26 @@
-"""Simple integration test for the backend."""
+"""Integration test for AI Arena backend."""
 
 import asyncio
 
+import pytest
 import socketio
 
 
-async def test_websocket():
-    """Test WebSocket connection and analyze flow."""
+BASE_URL = "http://localhost:8000"
+
+
+@pytest.mark.asyncio
+async def test_websocket_connection():
+    """Test WebSocket connection to backend."""
+    client = socketio.AsyncClient()
+    await client.connect(BASE_URL)
+    assert client.connected
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_analyze_conversation():
+    """Test analyze_conversation event flow."""
     client = socketio.AsyncClient()
 
     received_chunks = []
@@ -21,30 +35,18 @@ async def test_websocket():
         received_complete.append(data["full_text"])
         await client.disconnect()
 
-    try:
-        await client.connect("http://localhost:8000")
-        print("Connected to backend")
+    await client.connect(BASE_URL)
 
-        await client.emit("analyze_conversation", {
-            "messages": [
-                {"role": "user", "content": "什么是人工智能？"},
-                {"role": "assistant", "content": "人工智能是模拟人类智能的技术。"},
-            ]
-        })
+    await client.emit("analyze_conversation", {
+        "messages": [
+            {"role": "user", "content": "什么是人工智能？"},
+            {"role": "assistant", "content": "人工智能是模拟人类智能的技术。"},
+        ]
+    })
 
-        # Wait for response (with timeout)
-        await asyncio.wait_for(client.wait(), timeout=30)
+    # Wait for response (with timeout)
+    await asyncio.wait_for(client.wait(), timeout=30)
 
-        print(f"Received {len(received_chunks)} chunks")
-        print(f"Complete text length: {len(received_complete[0]) if received_complete else 0}")
-        print("Integration test PASSED" if received_complete else "Integration test FAILED")
-
-    except Exception as e:
-        print(f"Test failed: {e}")
-    finally:
-        if client.connected:
-            await client.disconnect()
-
-
-if __name__ == "__main__":
-    asyncio.run(test_websocket())
+    assert len(received_complete) == 1
+    assert len(received_complete[0]) > 0
+    assert client.connected is False

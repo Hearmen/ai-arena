@@ -70,7 +70,8 @@ ai-arena/
 ├── backend/          # Python/FastAPI 后端
 │   ├── main.py       # WebSocket 服务端
 │   ├── api/kimi.py   # Kimi API 调用
-│   └── prompts/      # System prompts
+│   ├── prompts/      # System prompts
+│   └── test_integration.py  # 集成测试
 ├── extension/        # Chrome 扩展
 │   ├── manifest.json
 │   ├── background.js # WebSocket 客户端
@@ -99,6 +100,18 @@ A: 检查后端是否运行在 `localhost:8000`，以及 `.env` 中的配置是�
 
 **Q: Kimi 没有自动发送分析？**
 A: 确保已登录 Kimi 网页版，且页面完全加载。如果仍失败，可以手动复制分析内容粘贴发送。
+
+## 测试
+
+### 后端集成测试
+
+确保后端正在运行，然后执行：
+
+```bash
+cd backend
+source venv/bin/activate
+pytest test_integration.py -v
+```
 
 ## License
 
