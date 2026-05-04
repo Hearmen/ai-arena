@@ -1,5 +1,6 @@
 """AI Arena Backend — FastAPI + Socket.IO server."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from utils.websocket import manager
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -20,12 +24,12 @@ sio = socketio.AsyncServer(
 
 @sio.event
 async def connect(sid: str, environ: dict):
-    await manager.connect(sid, environ)
+    manager.connect(sid, environ)
 
 
 @sio.event
 async def disconnect(sid: str):
-    await manager.disconnect(sid)
+    manager.disconnect(sid)
 
 
 @sio.event
@@ -40,24 +44,28 @@ async def analyze_conversation(sid: str, data: dict):
         ]
     }
     """
-    print(f"Received analyze request from {sid}")
-    print(f"Data: {data}")
+    try:
+        logger.info(f"Received analyze request from {sid}")
+        logger.info(f"Data: {data}")
 
-    # TODO: Call Kimi API in Task 3
-    # For now, echo back a test response
-    await sio.emit(
-        "analysis_complete",
-        {"full_text": "这是测试响应。后端已收到对话数据，正在等待 Kimi API 集成。"},
-        to=sid,
-    )
+        # TODO: Call Kimi API in Task 3
+        # For now, echo back a test response
+        await sio.emit(
+            "analysis_complete",
+            {"full_text": "这是测试响应。后端已收到对话数据，正在等待 Kimi API 集成。"},
+            to=sid,
+        )
+    except Exception as e:
+        logger.error(f"Error in analyze_conversation: {e}")
+        await sio.emit("analysis_error", {"error": str(e)}, to=sid)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events."""
-    print(f"Starting AI Arena backend on {os.getenv('HOST', '0.0.0.0')}:{os.getenv('PORT', '8000')}")
+    logger.info(f"Starting AI Arena backend on {os.getenv('HOST', '0.0.0.0')}:{os.getenv('PORT', '8000')}")
     yield
-    print("Shutting down AI Arena backend")
+    logger.info("Shutting down AI Arena backend")
 
 
 app = FastAPI(title="AI Arena Backend", lifespan=lifespan)
@@ -70,3 +78,12 @@ socket_app = socketio.ASGIApp(sio, app)
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "connections": len(manager.active_connections)}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        socket_app,
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+    )
