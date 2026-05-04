@@ -8,6 +8,8 @@
 (function () {
   'use strict';
 
+  const INJECTION_DELAY_MS = 2000;
+
   console.log('[AI Arena] ChatGPT content script loaded');
 
   let isButtonInjected = false;
@@ -135,7 +137,9 @@
     }
 
     notification.textContent = message;
-    document.body.appendChild(notification);
+    if (document.body) {
+      document.body.appendChild(notification);
+    }
 
     setTimeout(() => {
       notification.style.opacity = '0';
@@ -212,20 +216,22 @@
   /**
    * Listen for messages from background script
    */
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'connection_status') {
-      console.log('[AI Arena] Connection status:', request.payload);
-    }
-    sendResponse({ received: true });
-  });
+  if (chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type === 'connection_status') {
+        console.log('[AI Arena] Connection status:', request.payload);
+      }
+      sendResponse({ received: true });
+    });
+  }
 
   // Try to inject button when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(injectButton, 2000); // Wait for ChatGPT to render
+      setTimeout(injectButton, INJECTION_DELAY_MS); // Wait for ChatGPT to render
     });
   } else {
-    setTimeout(injectButton, 2000);
+    setTimeout(injectButton, INJECTION_DELAY_MS);
   }
 
   // Also try on URL changes (SPA navigation)
@@ -236,7 +242,7 @@
     if (url !== lastUrl) {
       lastUrl = url;
       isButtonInjected = false;
-      setTimeout(injectButton, 2000);
+      setTimeout(injectButton, INJECTION_DELAY_MS);
     }
   }).observe(mainContainer, { childList: true, subtree: false });
 })();
