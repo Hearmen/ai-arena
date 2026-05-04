@@ -16,58 +16,68 @@
    * Extract conversation messages from ChatGPT DOM
    */
   function extractConversation() {
-    const messages = [];
+    try {
+      const messages = [];
 
-    // ChatGPT uses article elements for messages
-    // The structure may change, so we try multiple selectors
-    const messageSelectors = [
-      'article[data-testid^="conversation-turn-"]',
-      'article[class*="group"]',
-      'main article',
-    ];
-
-    let messageElements = [];
-    for (const selector of messageSelectors) {
-      messageElements = document.querySelectorAll(selector);
-      if (messageElements.length > 0) break;
-    }
-
-    messageElements.forEach((article) => {
-      // Determine role: user or assistant
-      const isUser = article.querySelector('img[alt*="User"], [data-testid*="user"], .rounded-sm') !== null;
-      const role = isUser ? 'user' : 'assistant';
-
-      // Extract text content
-      const textSelectors = [
-        '.markdown',
-        '[data-message-author-role] .whitespace-pre-wrap',
-        '.text-message',
-        'p',
+      // ChatGPT uses article elements for messages
+      // The structure may change, so we try multiple selectors
+      const messageSelectors = [
+        'article[data-testid^="conversation-turn-"]',
+        'article[class*="group"]',
+        'main article',
       ];
 
-      let content = '';
-      for (const selector of textSelectors) {
-        const elements = article.querySelectorAll(selector);
-        if (elements.length > 0) {
-          content = Array.from(elements)
-            .map((el) => el.textContent.trim())
-            .join('\n');
-          break;
+      let messageElements = [];
+      for (const selector of messageSelectors) {
+        messageElements = document.querySelectorAll(selector);
+        if (messageElements.length > 0) break;
+      }
+
+      messageElements.forEach((article) => {
+        // Determine role: user or assistant
+        const isUser = article.querySelector('img[alt*="User"], [data-testid*="user"], .rounded-sm') !== null;
+        const role = isUser ? 'user' : 'assistant';
+
+        // Extract text content
+        const textSelectors = [
+          '.markdown',
+          '[data-message-author-role] .whitespace-pre-wrap',
+          '.text-message',
+          'p',
+        ];
+
+        let content = '';
+        for (const selector of textSelectors) {
+          const elements = article.querySelectorAll(selector);
+          if (elements.length > 0) {
+            content = Array.from(elements)
+              .map((el) => el.textContent.trim())
+              .join('\n');
+            break;
+          }
         }
-      }
 
-      if (content) {
-        messages.push({ role, content });
-      }
-    });
+        if (content) {
+          messages.push({ role, content });
+        }
+      });
 
-    return messages;
+      return messages;
+    } catch (e) {
+      console.error('[AI Arena] Error extracting conversation:', e);
+      return [];
+    }
   }
 
   /**
    * Send conversation to background script for analysis
    */
   function sendToKimi() {
+    if (!chrome.runtime || !chrome.runtime.sendMessage) {
+      showNotification('扩展上下文已失效，请刷新页面', 'error');
+      return;
+    }
+
     const messages = extractConversation();
 
     if (messages.length === 0) {
@@ -83,6 +93,10 @@
         payload: { messages },
       },
       (response) => {
+        if (chrome.runtime.lastError) {
+          showNotification('发送失败: ' + chrome.runtime.lastError.message, 'error');
+          return;
+        }
         if (response && response.success) {
           showNotification('已发送给 Kimi 分析，请查看右侧面板');
         } else {
@@ -134,6 +148,10 @@
    */
   function injectButton() {
     if (isButtonInjected) return;
+    if (document.getElementById('ai-arena-analyze-btn')) {
+      isButtonInjected = true;
+      return;
+    }
 
     // Try to find a good insertion point
     const insertionSelectors = [
@@ -212,6 +230,7 @@
 
   // Also try on URL changes (SPA navigation)
   let lastUrl = location.href;
+  const mainContainer = document.querySelector('main') || document.body;
   new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
@@ -219,13 +238,5 @@
       isButtonInjected = false;
       setTimeout(injectButton, 2000);
     }
-  }).observe(document, { subtree: true, childList: true });
-
-  // Periodic check for button (in case ChatGPT re-renders)
-  setInterval(() => {
-    if (!document.getElementById('ai-arena-analyze-btn')) {
-      isButtonInjected = false;
-      injectButton();
-    }
-  }, 5000);
+  }).observe(mainContainer, { childList: true, subtree: false });
 })();
