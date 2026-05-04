@@ -3,7 +3,7 @@
   "name": "AI Arena Bridge",
   "version": "1.0.0",
   "description": "连接 ChatGPT 与 Kimi，提供批判性多视角分析",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "alarms"],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://moonshot.cn/*"

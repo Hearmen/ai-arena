@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Check connection status
   chrome.runtime.sendMessage({ type: 'get_status' }, (response) => {
+    if (chrome.runtime.lastError) {
+      statusDot.className = 'status-dot disconnected';
+      statusText.textContent = '服务未运行';
+      return;
+    }
     if (response && response.connected) {
       statusDot.className = 'status-dot connected';
       statusText.textContent = '已连接';

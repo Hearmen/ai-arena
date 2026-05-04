@@ -5,7 +5,7 @@
  * between content scripts and the backend.
  */
 
-const WS_URL = 'ws://localhost:8000';
+let WS_URL = 'ws://localhost:8000';
 let socket = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -14,6 +14,26 @@ const RECONNECT_BASE_DELAY = 1000;
 // Connection status
 let isConnected = false;
 
+// Load config on startup
+chrome.storage.local.get(['wsUrl'], (result) => {
+  if (result.wsUrl) {
+    WS_URL = result.wsUrl;
+  }
+  connectWebSocket();
+});
+
+// Listen for storage changes to update WS_URL dynamically
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.wsUrl) {
+    WS_URL = changes.wsUrl.newValue;
+    // Reconnect with new URL
+    if (socket) {
+      socket.close();
+    }
+    connectWebSocket();
+  }
+});
+
 /**
  * Initialize WebSocket connection
  */
@@ -21,6 +41,17 @@ function connectWebSocket() {
   if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
     console.log('[AI Arena] WebSocket already connected or connecting');
     return;
+  }
+
+  // Clean up old socket
+  if (socket) {
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.close();
+    }
   }
 
   console.log('[AI Arena] Connecting to backend...');
@@ -34,7 +65,19 @@ function connectWebSocket() {
   };
 
   socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (e) {
+      console.error('[AI Arena] Failed to parse message:', event.data);
+      return;
+    }
+
+    if (!data || typeof data !== 'object' || !data.event) {
+      console.warn('[AI Arena] Invalid message format:', data);
+      return;
+    }
+
     console.log('[AI Arena] Received from backend:', data);
 
     // Route analysis results to Kimi content script
@@ -125,9 +168,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   return true; // Keep message channel open for async response
 });
-
-// Initialize connection on startup
-connectWebSocket();
 
 // Keep service worker alive
 chrome.alarms.create('keepAlive', { periodInMinutes: 4.9 });
