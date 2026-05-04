@@ -8,7 +8,14 @@
 (function () {
   'use strict';
 
+  if (typeof chrome === 'undefined' || !chrome.runtime) {
+    console.log('[AI Arena] Extension context not available');
+    return;
+  }
+
   console.log('[AI Arena] Kimi content script loaded');
+
+  const SUBMIT_DELAY_MS = 500; // Wait for React/Vue to register input change
 
   let pendingAnalysis = null;
 
@@ -97,7 +104,7 @@
         input.dispatchEvent(enterEvent);
         console.log('[AI Arena] Submitted via Enter key');
       }
-    }, 500);
+    }, SUBMIT_DELAY_MS);
 
     return true;
   }
@@ -142,27 +149,26 @@
   /**
    * Listen for messages from background script
    */
-  if (chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      console.log('[AI Arena] Kimi received message:', request);
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('[AI Arena] Kimi received message:', request);
 
-      if (request.type === 'analysis_complete') {
-        const fullText = request.payload.full_text;
-        console.log('[AI Arena] Received analysis, length:', fullText.length);
+    if (request.type === 'analysis_complete') {
+      const fullText = request.payload.full_text;
+      console.log('[AI Arena] Received analysis, length:', fullText.length);
 
-        // Try to submit immediately
-        const success = submitToKimi(fullText);
-        if (!success) {
-          // Store for later if page not ready
-          pendingAnalysis = fullText;
-        }
-      } else if (request.type === 'connection_status') {
-        console.log('[AI Arena] Connection status:', request.payload);
+      // Try to submit immediately
+      const success = submitToKimi(fullText);
+      if (!success) {
+        // Store for later if page not ready
+        pendingAnalysis = fullText;
       }
+    } else if (request.type === 'connection_status') {
+      console.log('[AI Arena] Connection status:', request.payload);
+    }
 
-      sendResponse({ received: true });
-    });
-  }
+    sendResponse({ received: true });
+    return true;
+  });
 
   // Check for pending analysis when page loads/changes
   const checkPending = () => {
@@ -175,11 +181,18 @@
   };
 
   // Run check periodically
-  setInterval(checkPending, 2000);
+  const pendingInterval = setInterval(checkPending, 2000);
 
   // Also check on DOM changes
-  new MutationObserver(checkPending).observe(document.body || document.documentElement, {
+  const pendingObserver = new MutationObserver(checkPending);
+  pendingObserver.observe(document.documentElement, {
     childList: true,
     subtree: true,
+  });
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    clearInterval(pendingInterval);
+    pendingObserver.disconnect();
   });
 })();
