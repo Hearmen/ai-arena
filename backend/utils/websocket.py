@@ -1,5 +1,9 @@
 """WebSocket connection manager for Socket.IO."""
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ConnectionManager:
     """Manages Socket.IO connections."""
@@ -9,12 +13,12 @@ class ConnectionManager:
 
     def connect(self, sid: str, environ: dict):
         self.active_connections[sid] = {"environ": environ}
-        print(f"Client connected: {sid}")
+        logger.info("Client connected: %s", sid)
 
     def disconnect(self, sid: str):
         if sid in self.active_connections:
             del self.active_connections[sid]
-        print(f"Client disconnected: {sid}")
+        logger.info("Client disconnected: %s", sid)
 
     def is_connected(self, sid: str) -> bool:
         return sid in self.active_connections
