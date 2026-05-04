@@ -1,4 +1,4 @@
-"""Integration test for AI Arena backend."""
+"""Integration test for AI Arena backend (pass-through mode)."""
 
 import asyncio
 
@@ -16,19 +16,15 @@ async def test_websocket_connection():
     await client.connect(BASE_URL)
     assert client.connected
     await client.disconnect()
+    assert client.connected is False
 
 
 @pytest.mark.asyncio
 async def test_analyze_conversation():
-    """Test analyze_conversation event flow."""
+    """Test analyze_conversation builds prompt and sends it back."""
     client = socketio.AsyncClient()
 
-    received_chunks = []
     received_complete = []
-
-    @client.on("analysis_chunk")
-    async def on_chunk(data):
-        received_chunks.append(data["chunk"])
 
     @client.on("analysis_complete")
     async def on_complete(data):
@@ -48,5 +44,7 @@ async def test_analyze_conversation():
     await asyncio.wait_for(client.wait(), timeout=30)
 
     assert len(received_complete) == 1
-    assert len(received_complete[0]) > 0
+    # The response should be a prompt (not an API response)
+    assert "批判性思维专家" in received_complete[0]
+    assert "用户: 什么是人工智能？" in received_complete[0]
     assert client.connected is False

@@ -82,7 +82,7 @@ function connectWebSocket() {
 
     // Route analysis results to Kimi content script
     if (data.event === 'analysis_complete' || data.event === 'analysis_chunk') {
-      chrome.tabs.query({ url: 'https://moonshot.cn/*' }, (tabs) => {
+      chrome.tabs.query({ url: 'https://*.kimi.com/*' }, (tabs) => {
         tabs.forEach((tab) => {
           chrome.tabs.sendMessage(tab.id, {
             type: data.event,

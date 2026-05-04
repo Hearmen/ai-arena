@@ -1,20 +1,21 @@
-"""AI Arena Backend — FastAPI + Socket.IO server."""
+"""AI Arena Backend — FastAPI + Socket.IO server.
+
+Simplified version: backend acts as a pass-through.
+It receives conversation data from the extension, wraps it with a critic prompt,
+and sends it directly back to the extension for auto-submission into Kimi web UI.
+"""
 
 import logging
 import os
 from contextlib import asynccontextmanager
 
 import socketio
-from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from api.kimi import stream_kimi_analysis
 from utils.websocket import manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 # Create Socket.IO async server
 sio = socketio.AsyncServer(
@@ -33,9 +34,34 @@ async def disconnect(sid: str):
     manager.disconnect(sid)
 
 
+# Critic prompt template
+CRITIC_PROMPT_TEMPLATE = """你是一位批判性思维专家。用户正在与 ChatGPT 讨论一个话题。
+请基于以下对话历史，提供批判性分析：
+
+1. 指出 ChatGPT 观点中可能存在的漏洞、偏见或过度简化
+2. 提出被忽略的不同视角或反方论据
+3. 建议用户进一步思考的方向
+4. 保持客观、理性，不要为反对而反对
+
+对话历史：
+{conversation_history}
+
+请用中文给出你的分析，结构清晰，分点论述。"""
+
+
+def build_prompt(messages: list[dict]) -> str:
+    """Build the critic prompt from conversation messages."""
+    conversation_lines = []
+    for msg in messages:
+        role_label = "用户" if msg["role"] == "user" else "ChatGPT"
+        conversation_lines.append(f"{role_label}: {msg['content']}")
+    conversation_history = "\n".join(conversation_lines)
+    return CRITIC_PROMPT_TEMPLATE.format(conversation_history=conversation_history)
+
+
 @sio.event
 async def analyze_conversation(sid: str, data: dict):
-    """Receive conversation data from extension, call Kimi API, stream results back."""
+    """Receive conversation data from extension, build prompt, send back for Kimi web UI."""
     try:
         logger.info("Received analyze request from %s", sid)
 
@@ -44,15 +70,12 @@ async def analyze_conversation(sid: str, data: dict):
             await sio.emit("analysis_error", {"error": "No messages provided"}, to=sid)
             return
 
-        chunks = []
-        async for chunk in stream_kimi_analysis(messages):
-            chunks.append(chunk)
-            await sio.emit("analysis_chunk", {"chunk": chunk}, to=sid)
+        prompt = build_prompt(messages)
 
-        full_text = "".join(chunks)
-
-        await sio.emit("analysis_complete", {"full_text": full_text}, to=sid)
-        logger.info("Analysis complete for %s, length: %d", sid, len(full_text))
+        # Send the complete prompt directly to the extension
+        # The extension will auto-submit it into Kimi web UI
+        await sio.emit("analysis_complete", {"full_text": prompt}, to=sid)
+        logger.info("Prompt built and sent for %s, length: %d", sid, len(prompt))
     except Exception as e:
         logger.error("Error in analyze_conversation: %s", e)
         await sio.emit("analysis_error", {"error": str(e)}, to=sid)

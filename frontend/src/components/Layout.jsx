@@ -28,7 +28,7 @@ export default function Layout() {
         </div>
         <div className="flex-1">
           <iframe
-            src="https://moonshot.cn"
+            src="https://www.kimi.com"
             title="Kimi"
             className="w-full h-full"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
