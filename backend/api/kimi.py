@@ -1,9 +1,13 @@
 """Kimi (Moonshot) API client."""
 
+import json
+import logging
 import os
 from typing import AsyncGenerator
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
 KIMI_API_BASE = os.getenv("KIMI_API_BASE", "https://api.moonshot.cn/v1")
@@ -67,14 +71,13 @@ async def stream_kimi_analysis(messages: list[dict]) -> AsyncGenerator[str, None
                     if data == "[DONE]":
                         break
 
-                    import json
-
                     try:
                         chunk = json.loads(data)
                         delta = chunk["choices"][0]["delta"]
                         if "content" in delta:
                             yield delta["content"]
                     except (json.JSONDecodeError, KeyError, IndexError):
+                        logger.warning("Failed to parse SSE chunk: %s", data)
                         continue
 
         except httpx.HTTPStatusError as e:

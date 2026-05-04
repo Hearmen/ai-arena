@@ -44,10 +44,12 @@ async def analyze_conversation(sid: str, data: dict):
             await sio.emit("analysis_error", {"error": "No messages provided"}, to=sid)
             return
 
-        full_text = ""
+        chunks = []
         async for chunk in stream_kimi_analysis(messages):
-            full_text += chunk
+            chunks.append(chunk)
             await sio.emit("analysis_chunk", {"chunk": chunk}, to=sid)
+
+        full_text = "".join(chunks)
 
         await sio.emit("analysis_complete", {"full_text": full_text}, to=sid)
         logger.info("Analysis complete for %s, length: %d", sid, len(full_text))
