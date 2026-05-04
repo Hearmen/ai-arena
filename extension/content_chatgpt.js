@@ -8,57 +8,77 @@
 (function () {
   'use strict';
 
-  const INJECTION_DELAY_MS = 2000;
+  if (typeof chrome === 'undefined' || !chrome.runtime) {
+    console.log('[AI Arena] Extension context not available');
+    return;
+  }
 
   console.log('[AI Arena] ChatGPT content script loaded');
 
+  const INJECTION_DELAY_MS = 2000;
   let isButtonInjected = false;
 
   /**
    * Extract conversation messages from ChatGPT DOM
+   * ChatGPT uses a data-testid based structure as of 2025
    */
   function extractConversation() {
     try {
       const messages = [];
 
-      // ChatGPT uses article elements for messages
-      // The structure may change, so we try multiple selectors
-      const messageSelectors = [
-        'article[data-testid^="conversation-turn-"]',
-        'article[class*="group"]',
-        'main article',
-      ];
+      // Strategy 1: Look for conversation-turn articles (current ChatGPT UI)
+      const turnArticles = document.querySelectorAll('article[data-testid^="conversation-turn-"]');
+      if (turnArticles.length > 0) {
+        turnArticles.forEach((article) => {
+          // Determine role from data-testid or inner structure
+          const testId = article.getAttribute('data-testid') || '';
+          // Even turns are typically user, odd are assistant (starting from 0 or 1)
+          // Better: look for avatar or specific markers
+          const isUser = article.querySelector('img[alt*="User"], [data-testid*="user"], .rounded-sm') !== null ||
+                         article.textContent.includes('You said');
+          const role = isUser ? 'user' : 'assistant';
 
-      let messageElements = [];
-      for (const selector of messageSelectors) {
-        messageElements = document.querySelectorAll(selector);
-        if (messageElements.length > 0) break;
+          // Extract text from markdown content
+          const markdownEl = article.querySelector('.markdown, [data-message-author-role] .whitespace-pre-wrap, .text-message');
+          let content = '';
+          if (markdownEl) {
+            content = markdownEl.textContent.trim();
+          } else {
+            // Fallback: get all paragraph text
+            const paragraphs = article.querySelectorAll('p');
+            content = Array.from(paragraphs).map(p => p.textContent.trim()).join('\n');
+          }
+
+          if (content) {
+            messages.push({ role, content });
+          }
+        });
+        return messages;
       }
 
-      messageElements.forEach((article) => {
-        // Determine role: user or assistant
-        const isUser = article.querySelector('img[alt*="User"], [data-testid*="user"], .rounded-sm') !== null;
-        const role = isUser ? 'user' : 'assistant';
-
-        // Extract text content
-        const textSelectors = [
-          '.markdown',
-          '[data-message-author-role] .whitespace-pre-wrap',
-          '.text-message',
-          'p',
-        ];
-
-        let content = '';
-        for (const selector of textSelectors) {
-          const elements = article.querySelectorAll(selector);
-          if (elements.length > 0) {
-            content = Array.from(elements)
-              .map((el) => el.textContent.trim())
-              .join('\n');
-            break;
+      // Strategy 2: Look for message groups with role attributes
+      const messageGroups = document.querySelectorAll('[data-message-author-role]');
+      if (messageGroups.length > 0) {
+        messageGroups.forEach((group) => {
+          const role = group.getAttribute('data-message-author-role');
+          const textEl = group.querySelector('.whitespace-pre-wrap, .markdown, p');
+          if (textEl) {
+            messages.push({
+              role: role === 'user' ? 'user' : 'assistant',
+              content: textEl.textContent.trim()
+            });
           }
-        }
+        });
+        return messages;
+      }
 
+      // Strategy 3: Generic article-based extraction
+      const articles = document.querySelectorAll('main article, .group article');
+      articles.forEach((article) => {
+        const isUser = article.querySelector('img[alt*="User"]') !== null;
+        const role = isUser ? 'user' : 'assistant';
+        const textEls = article.querySelectorAll('.markdown, p, [class*="text"]');
+        const content = Array.from(textEls).map(el => el.textContent.trim()).join('\n');
         if (content) {
           messages.push({ role, content });
         }
@@ -83,7 +103,7 @@
     const messages = extractConversation();
 
     if (messages.length === 0) {
-      alert('未检测到对话内容，请确保页面已加载完成。');
+      showNotification('未检测到对话内容，请确保页面已加载完成。', 'error');
       return;
     }
 
@@ -157,11 +177,16 @@
       return;
     }
 
-    // Try to find a good insertion point
+    // Try multiple insertion points (ChatGPT UI changes frequently)
     const insertionSelectors = [
-      '[data-testid="send-button"]',
+      'form[data-testid="send-button"]',
+      'form button[data-testid="send-button"]',
       'button[aria-label*="Send"]',
+      'button[data-testid="send-button"]',
+      'form .btn-primary',
       'form button',
+      '[class*="composer"] button',
+      '[class*="input-area"] button',
     ];
 
     let targetElement = null;
@@ -170,7 +195,10 @@
       if (targetElement) break;
     }
 
-    if (!targetElement) return;
+    if (!targetElement) {
+      console.log('[AI Arena] Could not find insertion point for button');
+      return;
+    }
 
     const button = document.createElement('button');
     button.id = 'ai-arena-analyze-btn';
@@ -186,6 +214,7 @@
       cursor: pointer;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       transition: transform 0.1s, box-shadow 0.1s;
+      white-space: nowrap;
     `;
 
     button.addEventListener('mouseenter', () => {
@@ -204,7 +233,7 @@
       sendToKimi();
     });
 
-    // Insert next to the target element
+    // Insert next to the target element or its container
     const container = targetElement.parentElement;
     if (container) {
       container.appendChild(button);
@@ -226,23 +255,25 @@
   }
 
   // Try to inject button when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(injectButton, INJECTION_DELAY_MS); // Wait for ChatGPT to render
-    });
-  } else {
+  function tryInject() {
     setTimeout(injectButton, INJECTION_DELAY_MS);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInject);
+  } else {
+    tryInject();
   }
 
   // Also try on URL changes (SPA navigation)
   let lastUrl = location.href;
-  const mainContainer = document.querySelector('main') || document.body;
-  new MutationObserver(() => {
+  const observer = new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
       isButtonInjected = false;
-      setTimeout(injectButton, INJECTION_DELAY_MS);
+      tryInject();
     }
-  }).observe(mainContainer, { childList: true, subtree: false });
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 })();
