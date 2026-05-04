@@ -8,6 +8,7 @@ import socketio
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from api.kimi import stream_kimi_analysis
 from utils.websocket import manager
 
 logging.basicConfig(level=logging.INFO)
@@ -34,29 +35,24 @@ async def disconnect(sid: str):
 
 @sio.event
 async def analyze_conversation(sid: str, data: dict):
-    """Receive conversation data from extension, forward to Kimi API.
-
-    Expected data format:
-    {
-        "messages": [
-            {"role": "user", "content": "..."},
-            {"role": "assistant", "content": "..."}
-        ]
-    }
-    """
+    """Receive conversation data from extension, call Kimi API, stream results back."""
     try:
-        logger.info(f"Received analyze request from {sid}")
-        logger.info(f"Data: {data}")
+        logger.info("Received analyze request from %s", sid)
 
-        # TODO: Call Kimi API in Task 3
-        # For now, echo back a test response
-        await sio.emit(
-            "analysis_complete",
-            {"full_text": "这是测试响应。后端已收到对话数据，正在等待 Kimi API 集成。"},
-            to=sid,
-        )
+        messages = data.get("messages", [])
+        if not messages:
+            await sio.emit("analysis_error", {"error": "No messages provided"}, to=sid)
+            return
+
+        full_text = ""
+        async for chunk in stream_kimi_analysis(messages):
+            full_text += chunk
+            await sio.emit("analysis_chunk", {"chunk": chunk}, to=sid)
+
+        await sio.emit("analysis_complete", {"full_text": full_text}, to=sid)
+        logger.info("Analysis complete for %s, length: %d", sid, len(full_text))
     except Exception as e:
-        logger.error(f"Error in analyze_conversation: {e}")
+        logger.error("Error in analyze_conversation: %s", e)
         await sio.emit("analysis_error", {"error": str(e)}, to=sid)
 
 
