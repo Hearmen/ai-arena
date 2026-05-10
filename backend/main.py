@@ -27,6 +27,8 @@ sio = socketio.AsyncServer(
 
 @sio.event
 async def connect(sid: str, environ: dict):
+    logger.info(f"Socket.IO client connecting: {sid}")
+    logger.debug(f"Connection environ: {environ}")
     manager.connect(sid, environ)
 
 
@@ -64,21 +66,30 @@ def build_prompt(messages: list[dict]) -> str:
 async def analyze_conversation(sid: str, data: dict):
     """Receive conversation data from extension, build prompt, send back for Kimi web UI."""
     try:
+        logger.info("=" * 50)
         logger.info("Received analyze request from %s", sid)
+        logger.info("Data: %s", data)
 
         messages = data.get("messages", [])
+        logger.info("Number of messages: %d", len(messages))
+        
         if not messages:
+            logger.warning("No messages provided, sending error")
             await sio.emit("analysis_error", {"error": "No messages provided"}, to=sid)
             return
 
         prompt = build_prompt(messages)
+        logger.info("Built prompt, length: %d chars", len(prompt))
+        logger.debug("Prompt preview: %s...", prompt[:200])
 
         # Send the complete prompt directly to the extension
         # The extension will auto-submit it into Kimi web UI
+        logger.info("Sending analysis_complete to %s", sid)
         await sio.emit("analysis_complete", {"full_text": prompt}, to=sid)
-        logger.info("Prompt built and sent for %s, length: %d", sid, len(prompt))
+        logger.info("Prompt sent successfully for %s", sid)
+        logger.info("=" * 50)
     except Exception as e:
-        logger.error("Error in analyze_conversation: %s", e)
+        logger.error("Error in analyze_conversation: %s", e, exc_info=True)
         await sio.emit("analysis_error", {"error": str(e)}, to=sid)
 
 

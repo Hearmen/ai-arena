@@ -79,6 +79,7 @@ function connectSocket() {
 
     socket.on('analysis_complete', (data) => {
       console.log('[AI Arena] Received analysis_complete:', data);
+      console.log('[AI Arena] Prompt preview:', data.full_text ? data.full_text.substring(0, 100) + '...' : 'NO TEXT');
       routeToKimiTabs('analysis_complete', data);
     });
 
@@ -111,16 +112,21 @@ function connectSocket() {
  * Route messages to Kimi content script tabs
  */
 function routeToKimiTabs(type, payload) {
+  console.log('[AI Arena] Routing to Kimi tabs:', type);
   chrome.tabs.query({ url: 'https://*.kimi.com/*' }, (tabs) => {
+    console.log('[AI Arena] Found Kimi tabs:', tabs.length);
     if (tabs.length === 0) {
       console.warn('[AI Arena] No Kimi tabs found');
     }
     tabs.forEach((tab) => {
+      console.log('[AI Arena] Sending message to tab:', tab.id, tab.url);
       chrome.tabs.sendMessage(tab.id, {
         type: type,
         payload: payload,
-      }).catch(() => {
-        // Tab may not have content script loaded
+      }).then(() => {
+        console.log('[AI Arena] Message sent successfully to tab:', tab.id);
+      }).catch((err) => {
+        console.error('[AI Arena] Failed to send message to tab:', tab.id, err);
       });
     });
   });
