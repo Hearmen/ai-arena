@@ -1,11 +1,18 @@
 /**
  * AI Arena Bridge — Background Service Worker
  *
- * Manages WebSocket connection to local backend and routes messages
+ * Manages Socket.IO connection to local backend and routes messages
  * between content scripts and the backend.
  */
 
-let WS_URL = 'ws://localhost:8000';
+// Import Socket.IO client (loaded via importScripts in service worker)
+try {
+  importScripts('socket.io.min.js');
+} catch (e) {
+  console.error('[AI Arena] Failed to load Socket.IO client:', e);
+}
+
+let WS_URL = 'http://localhost:8000';
 let socket = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -19,7 +26,7 @@ chrome.storage.local.get(['wsUrl'], (result) => {
   if (result.wsUrl) {
     WS_URL = result.wsUrl;
   }
-  connectWebSocket();
+  connectSocket();
 });
 
 // Listen for storage changes to update WS_URL dynamically
@@ -30,83 +37,93 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (socket) {
       socket.close();
     }
-    connectWebSocket();
+    connectSocket();
   }
 });
 
 /**
- * Initialize WebSocket connection
+ * Initialize Socket.IO connection
  */
-function connectWebSocket() {
-  if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
-    console.log('[AI Arena] WebSocket already connected or connecting');
+function connectSocket() {
+  if (socket && socket.connected) {
+    console.log('[AI Arena] Socket.IO already connected');
     return;
   }
 
   // Clean up old socket
   if (socket) {
-    socket.onopen = null;
-    socket.onmessage = null;
-    socket.onclose = null;
-    socket.onerror = null;
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.close();
-    }
+    socket.removeAllListeners();
+    socket.close();
   }
 
-  console.log('[AI Arena] Connecting to backend...');
-  socket = new WebSocket(WS_URL);
+  console.log('[AI Arena] Connecting to backend via Socket.IO:', WS_URL);
 
-  socket.onopen = () => {
-    console.log('[AI Arena] WebSocket connected');
-    isConnected = true;
-    reconnectAttempts = 0;
-    broadcastStatus({ connected: true });
-  };
+  try {
+    socket = io(WS_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: false, // We handle reconnection manually
+      timeout: 5000,
+    });
 
-  socket.onmessage = (event) => {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (e) {
-      console.error('[AI Arena] Failed to parse message:', event.data);
-      return;
-    }
+    socket.on('connect', () => {
+      console.log('[AI Arena] Socket.IO connected');
+      isConnected = true;
+      reconnectAttempts = 0;
+      broadcastStatus({ connected: true });
+    });
 
-    if (!data || typeof data !== 'object' || !data.event) {
-      console.warn('[AI Arena] Invalid message format:', data);
-      return;
-    }
+    socket.on('analysis_chunk', (data) => {
+      console.log('[AI Arena] Received analysis_chunk:', data);
+      routeToKimiTabs('analysis_chunk', data);
+    });
 
-    console.log('[AI Arena] Received from backend:', data);
+    socket.on('analysis_complete', (data) => {
+      console.log('[AI Arena] Received analysis_complete:', data);
+      routeToKimiTabs('analysis_complete', data);
+    });
 
-    // Route analysis results to Kimi content script
-    if (data.event === 'analysis_complete' || data.event === 'analysis_chunk') {
-      chrome.tabs.query({ url: 'https://*.kimi.com/*' }, (tabs) => {
-        tabs.forEach((tab) => {
-          chrome.tabs.sendMessage(tab.id, {
-            type: data.event,
-            payload: data.data,
-          }).catch(() => {
-            // Tab may not have content script loaded
-          });
-        });
-      });
-    }
-  };
+    socket.on('analysis_error', (data) => {
+      console.error('[AI Arena] Received analysis_error:', data);
+      routeToKimiTabs('analysis_error', data);
+    });
 
-  socket.onclose = () => {
-    console.log('[AI Arena] WebSocket closed');
-    isConnected = false;
-    broadcastStatus({ connected: false });
+    socket.on('disconnect', (reason) => {
+      console.log('[AI Arena] Socket.IO disconnected:', reason);
+      isConnected = false;
+      broadcastStatus({ connected: false });
+      attemptReconnect();
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('[AI Arena] Socket.IO connection error:', error.message);
+      isConnected = false;
+      broadcastStatus({ connected: false, error: true });
+      attemptReconnect();
+    });
+
+  } catch (e) {
+    console.error('[AI Arena] Failed to create Socket.IO connection:', e);
     attemptReconnect();
-  };
+  }
+}
 
-  socket.onerror = (error) => {
-    console.error('[AI Arena] WebSocket error:', error);
-    isConnected = false;
-    broadcastStatus({ connected: false, error: true });
-  };
+/**
+ * Route messages to Kimi content script tabs
+ */
+function routeToKimiTabs(type, payload) {
+  chrome.tabs.query({ url: 'https://*.kimi.com/*' }, (tabs) => {
+    if (tabs.length === 0) {
+      console.warn('[AI Arena] No Kimi tabs found');
+    }
+    tabs.forEach((tab) => {
+      chrome.tabs.sendMessage(tab.id, {
+        type: type,
+        payload: payload,
+      }).catch(() => {
+        // Tab may not have content script loaded
+      });
+    });
+  });
 }
 
 /**
@@ -122,7 +139,7 @@ function attemptReconnect() {
   reconnectAttempts++;
 
   console.log(`[AI Arena] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
-  setTimeout(connectWebSocket, delay);
+  setTimeout(connectSocket, delay);
 }
 
 /**
@@ -142,16 +159,15 @@ function broadcastStatus(status) {
 }
 
 /**
- * Send data to backend via WebSocket
+ * Send data to backend via Socket.IO
  */
 function sendToBackend(event, data) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    console.error('[AI Arena] WebSocket not connected');
+  if (!socket || !socket.connected) {
+    console.error('[AI Arena] Socket.IO not connected');
     return false;
   }
 
-  const message = JSON.stringify([event, data]);
-  socket.send(message);
+  socket.emit(event, data);
   return true;
 }
 
