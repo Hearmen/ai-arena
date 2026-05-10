@@ -1,8 +1,11 @@
 /**
- * AI Arena Bridge — ChatGPT Content Script
+ * AI Arena — ChatGPT Content Script (V2)
  *
- * Injected into chatgpt.com to extract conversation history
- * and provide the "Send to Kimi" button.
+ * Injected into chatgpt.com to:
+ * 1. Extract conversation history
+ * 2. Inject floating button 🎯 and side panel with Kimi iframe
+ * 3. Inject "让 Kimi 分析" button into ChatGPT input area
+ * 4. Build prompt locally and send to Kimi iframe via postMessage
  */
 
 (function () {
@@ -13,75 +16,85 @@
     return;
   }
 
-  console.log('[AI Arena] ChatGPT content script loaded');
+  console.log('[AI Arena] ChatGPT content script loaded (V2)');
 
   const INJECTION_DELAY_MS = 2000;
   let isButtonInjected = false;
+  let panelVisible = false;
+  let panelEl = null;
+  let iframeEl = null;
 
-  /**
-   * Extract conversation messages from ChatGPT DOM
-   * ChatGPT uses a data-testid based structure as of 2025
-   */
+  // ───────────────────────────────────────────────
+  // Prompt Builder (inline to avoid async load issues)
+  // ───────────────────────────────────────────────
+  const CRITIC_PROMPT_TEMPLATE = `你是一位批判性思维专家。用户正在与 ChatGPT 讨论一个话题。
+请基于以下对话历史，提供批判性分析：
+
+1. 指出 ChatGPT 观点中可能存在的漏洞、偏见或过度简化
+2. 提出被忽略的不同视角或反方论据
+3. 建议用户进一步思考的方向
+4. 保持客观、理性，不要为反对而反对
+
+对话历史：
+{conversation_history}
+
+请用中文给出你的分析，结构清晰，分点论述。`;
+
+  function buildPrompt(messages) {
+    const lines = messages.map(m =>
+      `${m.role === 'user' ? '用户' : 'ChatGPT'}: ${m.content}`
+    );
+    return CRITIC_PROMPT_TEMPLATE.replace('{conversation_history}', lines.join('\n'));
+  }
+
+  // ───────────────────────────────────────────────
+  // Conversation Extraction
+  // ───────────────────────────────────────────────
   function extractConversation() {
     try {
       const messages = [];
 
-      // Strategy 1: Look for conversation-turn articles (current ChatGPT UI)
+      // Strategy 1: conversation-turn articles
       const turnArticles = document.querySelectorAll('article[data-testid^="conversation-turn-"]');
       if (turnArticles.length > 0) {
         turnArticles.forEach((article) => {
-          // Determine role from data-testid or inner structure
-          const testId = article.getAttribute('data-testid') || '';
-          // Even turns are typically user, odd are assistant (starting from 0 or 1)
-          // Better: look for avatar or specific markers
           const isUser = article.querySelector('img[alt*="User"], [data-testid*="user"], .rounded-sm') !== null ||
                          article.textContent.includes('You said');
           const role = isUser ? 'user' : 'assistant';
-
-          // Extract text from markdown content
           const markdownEl = article.querySelector('.markdown, [data-message-author-role] .whitespace-pre-wrap, .text-message');
           let content = '';
           if (markdownEl) {
             content = markdownEl.textContent.trim();
           } else {
-            // Fallback: get all paragraph text
             const paragraphs = article.querySelectorAll('p');
             content = Array.from(paragraphs).map(p => p.textContent.trim()).join('\n');
           }
-
-          if (content) {
-            messages.push({ role, content });
-          }
+          if (content) messages.push({ role, content });
         });
         return messages;
       }
 
-      // Strategy 2: Look for message groups with role attributes
+      // Strategy 2: message groups with role attributes
       const messageGroups = document.querySelectorAll('[data-message-author-role]');
       if (messageGroups.length > 0) {
         messageGroups.forEach((group) => {
           const role = group.getAttribute('data-message-author-role');
           const textEl = group.querySelector('.whitespace-pre-wrap, .markdown, p');
           if (textEl) {
-            messages.push({
-              role: role === 'user' ? 'user' : 'assistant',
-              content: textEl.textContent.trim()
-            });
+            messages.push({ role: role === 'user' ? 'user' : 'assistant', content: textEl.textContent.trim() });
           }
         });
         return messages;
       }
 
-      // Strategy 3: Generic article-based extraction
+      // Strategy 3: generic articles
       const articles = document.querySelectorAll('main article, .group article');
       articles.forEach((article) => {
         const isUser = article.querySelector('img[alt*="User"]') !== null;
         const role = isUser ? 'user' : 'assistant';
         const textEls = article.querySelectorAll('.markdown, p, [class*="text"]');
         const content = Array.from(textEls).map(el => el.textContent.trim()).join('\n');
-        if (content) {
-          messages.push({ role, content });
-        }
+        if (content) messages.push({ role, content });
       });
 
       return messages;
@@ -91,46 +104,9 @@
     }
   }
 
-  /**
-   * Send conversation to background script for analysis
-   */
-  function sendToKimi() {
-    if (!chrome.runtime || !chrome.runtime.sendMessage) {
-      showNotification('扩展上下文已失效，请刷新页面', 'error');
-      return;
-    }
-
-    const messages = extractConversation();
-
-    if (messages.length === 0) {
-      showNotification('未检测到对话内容，请确保页面已加载完成。', 'error');
-      return;
-    }
-
-    console.log('[AI Arena] Extracted messages:', messages);
-
-    chrome.runtime.sendMessage(
-      {
-        type: 'analyze_conversation',
-        payload: { messages },
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          showNotification('发送失败: ' + chrome.runtime.lastError.message, 'error');
-          return;
-        }
-        if (response && response.success) {
-          showNotification('已发送给 Kimi 分析，请查看右侧面板');
-        } else {
-          showNotification('发送失败，请检查后端连接', 'error');
-        }
-      }
-    );
-  }
-
-  /**
-   * Show a temporary notification on the page
-   */
+  // ───────────────────────────────────────────────
+  // UI: Notification
+  // ───────────────────────────────────────────────
   function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.style.cssText = `
@@ -141,11 +117,10 @@
       border-radius: 8px;
       font-size: 14px;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      z-index: 999999;
+      z-index: 9999999;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       transition: opacity 0.3s;
     `;
-
     if (type === 'error') {
       notification.style.background = '#fee2e2';
       notification.style.color = '#991b1b';
@@ -155,29 +130,175 @@
       notification.style.color = '#1e40af';
       notification.style.border = '1px solid #bfdbfe';
     }
-
     notification.textContent = message;
-    if (document.body) {
-      document.body.appendChild(notification);
-    }
-
+    if (document.body) document.body.appendChild(notification);
     setTimeout(() => {
       notification.style.opacity = '0';
       setTimeout(() => notification.remove(), 300);
     }, 3000);
   }
 
-  /**
-   * Inject the "Send to Kimi" button into ChatGPT UI
-   */
-  function injectButton() {
+  // ───────────────────────────────────────────────
+  // UI: Side Panel with Kimi iframe
+  // ───────────────────────────────────────────────
+  function createSidePanel() {
+    if (panelEl) return;
+
+    // Container
+    panelEl = document.createElement('div');
+    panelEl.id = 'ai-arena-panel';
+    panelEl.style.cssText = `
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 420px;
+      height: 100vh;
+      z-index: 999999;
+      background: #fff;
+      border-left: 1px solid #e5e7eb;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    `;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f9fafb;
+      flex-shrink: 0;
+    `;
+    const title = document.createElement('span');
+    title.textContent = '🎯 Kimi 分析面板';
+    title.style.cssText = 'font-weight: 600; font-size: 14px; color: #111827;';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      color: #6b7280;
+      padding: 4px 8px;
+      border-radius: 4px;
+    `;
+    closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = '#e5e7eb');
+    closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'none');
+    closeBtn.addEventListener('click', togglePanel);
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    // iframe
+    iframeEl = document.createElement('iframe');
+    iframeEl.src = 'https://kimi.com';
+    iframeEl.style.cssText = `
+      flex: 1;
+      border: none;
+      width: 100%;
+    `;
+    iframeEl.allow = 'clipboard-write';
+
+    panelEl.appendChild(header);
+    panelEl.appendChild(iframeEl);
+    document.body.appendChild(panelEl);
+
+    // Resize handle
+    const resizeHandle = document.createElement('div');
+    resizeHandle.style.cssText = `
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: ew-resize;
+      z-index: 1;
+    `;
+    panelEl.appendChild(resizeHandle);
+
+    let isResizing = false;
+    resizeHandle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      document.body.style.cursor = 'ew-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(300, Math.min(800, window.innerWidth - e.clientX));
+      panelEl.style.width = newWidth + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      document.body.style.cursor = '';
+    });
+  }
+
+  function togglePanel() {
+    if (!panelEl) createSidePanel();
+    panelVisible = !panelVisible;
+    panelEl.style.transform = panelVisible ? 'translateX(0)' : 'translateX(100%)';
+  }
+
+  function ensurePanelVisible() {
+    if (!panelVisible) togglePanel();
+  }
+
+  // ───────────────────────────────────────────────
+  // UI: Floating Button
+  // ───────────────────────────────────────────────
+  function createFloatingButton() {
+    if (document.getElementById('ai-arena-floating-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'ai-arena-floating-btn';
+    btn.textContent = '🎯';
+    btn.title = 'Kimi 分析面板';
+    btn.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 999998;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+    btn.addEventListener('mouseenter', () => {
+      btn.style.transform = 'scale(1.1)';
+      btn.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.transform = 'scale(1)';
+      btn.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+    });
+    btn.addEventListener('click', togglePanel);
+    document.body.appendChild(btn);
+  }
+
+  // ───────────────────────────────────────────────
+  // UI: Analyze Button in ChatGPT input area
+  // ───────────────────────────────────────────────
+  function injectAnalyzeButton() {
     if (isButtonInjected) return;
     if (document.getElementById('ai-arena-analyze-btn')) {
       isButtonInjected = true;
       return;
     }
 
-    // Try multiple insertion points (ChatGPT UI changes frequently)
     const insertionSelectors = [
       'form[data-testid="send-button"]',
       'form button[data-testid="send-button"]',
@@ -196,7 +317,7 @@
     }
 
     if (!targetElement) {
-      console.log('[AI Arena] Could not find insertion point for button');
+      console.log('[AI Arena] Could not find insertion point for analyze button');
       return;
     }
 
@@ -216,24 +337,20 @@
       transition: transform 0.1s, box-shadow 0.1s;
       white-space: nowrap;
     `;
-
     button.addEventListener('mouseenter', () => {
       button.style.transform = 'scale(1.05)';
       button.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
     });
-
     button.addEventListener('mouseleave', () => {
       button.style.transform = 'scale(1)';
       button.style.boxShadow = 'none';
     });
-
     button.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      sendToKimi();
+      handleAnalyzeClick();
     });
 
-    // Insert next to the target element or its container
     const container = targetElement.parentElement;
     if (container) {
       container.appendChild(button);
@@ -242,37 +359,60 @@
     }
   }
 
-  /**
-   * Listen for messages from background script
-   */
-  if (chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type === 'connection_status') {
-        console.log('[AI Arena] Connection status:', request.payload);
-      }
-      sendResponse({ received: true });
-    });
+  // ───────────────────────────────────────────────
+  // Core: Handle Analyze Click
+  // ───────────────────────────────────────────────
+  function handleAnalyzeClick() {
+    const messages = extractConversation();
+    if (messages.length === 0) {
+      showNotification('未检测到对话内容，请确保页面已加载完成。', 'error');
+      return;
+    }
+
+    console.log('[AI Arena] Extracted messages:', messages);
+
+    // Build prompt locally
+    const prompt = buildPrompt(messages);
+    console.log('[AI Arena] Built prompt, length:', prompt.length);
+
+    // Ensure panel is visible
+    ensurePanelVisible();
+
+    // Send to Kimi iframe via postMessage
+    if (iframeEl && iframeEl.contentWindow) {
+      iframeEl.contentWindow.postMessage({
+        source: 'ai-arena',
+        type: 'analyze_conversation',
+        payload: { prompt }
+      }, '*');
+      showNotification('已发送给 Kimi 分析，请查看右侧面板');
+    } else {
+      showNotification('Kimi 面板未就绪，请稍后再试', 'error');
+    }
   }
 
-  // Try to inject button when DOM is ready
-  function tryInject() {
-    setTimeout(injectButton, INJECTION_DELAY_MS);
+  // ───────────────────────────────────────────────
+  // Init
+  // ───────────────────────────────────────────────
+  function init() {
+    createFloatingButton();
+    setTimeout(injectAnalyzeButton, INJECTION_DELAY_MS);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tryInject);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    tryInject();
+    init();
   }
 
-  // Also try on URL changes (SPA navigation)
+  // SPA navigation
   let lastUrl = location.href;
   const observer = new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
       isButtonInjected = false;
-      tryInject();
+      setTimeout(injectAnalyzeButton, INJECTION_DELAY_MS);
     }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });

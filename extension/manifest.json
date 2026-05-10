@@ -1,29 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "AI Arena Bridge",
-  "version": "1.0.0",
-  "description": "连接 ChatGPT 与 Kimi，提供批判性多视角分析",
+  "name": "AI Arena",
+  "version": "2.0.0",
+  "description": "在 ChatGPT 对话时获得 Kimi 的批判性分析",
   "permissions": [
     "activeTab",
-    "storage",
-    "alarms",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
+    "storage"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://kimi.com/*",
     "https://www.kimi.com/*"
   ],
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "ruleset_1",
-        "enabled": true,
-        "path": "rules.json"
-      }
-    ]
-  },
   "content_scripts": [
     {
       "matches": ["https://chatgpt.com/*"],
@@ -36,15 +24,6 @@
       "js": ["content_kimi.js"],
       "all_frames": true,
       "run_at": "document_idle"
-    }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["socket.io.min.js"],
-      "matches": ["<all_urls>"]
     }
   ],
   "action": {
