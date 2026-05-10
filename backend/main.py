@@ -18,9 +18,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create Socket.IO async server
+# CORS: allow all origins for local development (Chrome extension has null origin)
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins=["chrome-extension://*", "http://localhost:*"],
+    cors_allowed_origins="*",
 )
 
 
