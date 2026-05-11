@@ -39,7 +39,7 @@
   // ───────────────────────────────────────────────
   // Prompt Builder
   // ───────────────────────────────────────────────
-  const CRITIC_PROMPT_TEMPLATE = `你是一位批判性思维专家。用户正在与 ChatGPT 讨论一个话题。
+  const DEFAULT_PROMPT_TEMPLATE = `你是一位批判性思维专家。用户正在与 ChatGPT 讨论一个话题。
 请基于以下对话历史，提供批判性分析：
 
 1. 指出 ChatGPT 观点中可能存在的漏洞、偏见或过度简化
@@ -52,11 +52,14 @@
 
 请用中文给出你的分析，结构清晰，分点论述。`;
 
+  let _arenaPromptTemplate = null; // null = use default
+
   function buildPrompt(messages) {
+    const template = _arenaPromptTemplate || DEFAULT_PROMPT_TEMPLATE;
     const lines = messages.map(m =>
       `${m.role === 'user' ? '用户' : 'ChatGPT'}: ${m.content}`
     );
-    return CRITIC_PROMPT_TEMPLATE.replace('{conversation_history}', lines.join('\n'));
+    return template.replace('{conversation_history}', lines.join('\n'));
   }
 
   // ───────────────────────────────────────────────
@@ -576,4 +579,25 @@
     clearInterval(initInterval);
     observer.disconnect();
   });
+
+  // ───────────────────────────────────────────────
+  // Listen for prompt template updates from popup
+  // ───────────────────────────────────────────────
+  if (chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type === 'get_prompt_template') {
+        sendResponse({
+          template: _arenaPromptTemplate || DEFAULT_PROMPT_TEMPLATE,
+          isDefault: !_arenaPromptTemplate
+        });
+        return true;
+      }
+      if (request.type === 'update_prompt_template') {
+        _arenaPromptTemplate = request.template || null;
+        console.log('[AI Arena] Prompt template updated');
+        sendResponse({ success: true });
+        return true;
+      }
+    });
+  }
 })();
