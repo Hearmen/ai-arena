@@ -65,6 +65,10 @@
   // ───────────────────────────────────────────────
   // Conversation Extraction
   // ───────────────────────────────────────────────
+
+  /**
+   * Extract ALL conversation messages from ChatGPT DOM
+   */
   function extractConversation() {
     try {
       const messages = [];
@@ -117,6 +121,32 @@
       console.error('[AI Arena] Error extracting conversation:', e);
       return [];
     }
+  }
+
+  /**
+   * Extract ONLY the latest round (last user message + last assistant message)
+   */
+  function extractLatestRound() {
+    const allMessages = extractConversation();
+    if (allMessages.length === 0) return [];
+
+    // Find the last assistant message, then get the user message before it
+    let lastAssistantIndex = -1;
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      if (allMessages[i].role === 'assistant') {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+
+    if (lastAssistantIndex === -1) {
+      // No assistant message found, return all (first user message only)
+      return allMessages;
+    }
+
+    // Return the pair: user message before last assistant + last assistant
+    const startIndex = lastAssistantIndex - 1 >= 0 ? lastAssistantIndex - 1 : 0;
+    return allMessages.slice(startIndex, lastAssistantIndex + 1);
   }
 
   // ───────────────────────────────────────────────
@@ -445,13 +475,13 @@
   // Core: Handle Analyze Click
   // ───────────────────────────────────────────────
   function handleAnalyzeClick() {
-    const messages = extractConversation();
+    const messages = extractLatestRound();
     if (messages.length === 0) {
       showNotification('未检测到对话内容，请确保页面已加载完成。', 'error');
       return;
     }
 
-    console.log('[AI Arena] Extracted messages:', messages);
+    console.log('[AI Arena] Extracted latest round:', messages);
 
     const prompt = buildPrompt(messages);
     console.log('[AI Arena] Built prompt, length:', prompt.length);
