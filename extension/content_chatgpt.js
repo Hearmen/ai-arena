@@ -26,10 +26,15 @@
   let iframeEl = null;
   let initAttempts = 0;
   const MAX_INIT_ATTEMPTS = 20;
+  const DEFAULT_PANEL_WIDTH = 420;
+  let currentPanelWidth = DEFAULT_PANEL_WIDTH;
 
   // Resize state (module-level to avoid duplicate listeners)
   let isResizing = false;
   let resizeHandleEl = null;
+
+  // ChatGPT main layout element (will be adjusted when panel opens)
+  let chatgptMainEl = null;
 
   // ───────────────────────────────────────────────
   // Prompt Builder
@@ -161,7 +166,7 @@
       position: fixed;
       top: 0;
       right: 0;
-      width: 420px;
+      width: ${currentPanelWidth}px;
       height: 100vh;
       z-index: 999999;
       background: #fff;
@@ -227,11 +232,49 @@
     console.log('[AI Arena] Side panel created');
   }
 
+  // ───────────────────────────────────────────────
+  // Layout adjustment: shrink ChatGPT main area when panel opens
+  // ───────────────────────────────────────────────
+  function findChatGPTMainElement() {
+    // ChatGPT uses different main containers; try common ones
+    const selectors = [
+      'main[role="main"]',
+      'main',
+      '#__next > div > main',
+      '[class*="main-content"]',
+      '[class*="chat-page"]',
+    ];
+    for (const s of selectors) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function adjustChatGPTLayout(panelOpen, width) {
+    if (!chatgptMainEl) {
+      chatgptMainEl = findChatGPTMainElement();
+    }
+    if (!chatgptMainEl) {
+      console.log('[AI Arena] Could not find ChatGPT main element to adjust');
+      return;
+    }
+
+    if (panelOpen) {
+      chatgptMainEl.style.marginRight = width + 'px';
+      chatgptMainEl.style.transition = 'margin-right 0.3s ease';
+    } else {
+      chatgptMainEl.style.marginRight = '0px';
+      chatgptMainEl.style.transition = 'margin-right 0.3s ease';
+    }
+  }
+
   function togglePanel() {
     if (!panelEl) createSidePanel();
     if (!panelEl) return;
     panelVisible = !panelVisible;
     panelEl.style.transform = panelVisible ? 'translateX(0)' : 'translateX(100%)';
+    adjustChatGPTLayout(panelVisible, currentPanelWidth);
     console.log('[AI Arena] Panel toggled:', panelVisible ? 'visible' : 'hidden');
   }
 
@@ -487,8 +530,11 @@
   window.addEventListener('mousemove', (e) => {
     if (!isResizing || !panelEl) return;
     const newWidth = Math.max(300, Math.min(800, window.innerWidth - e.clientX));
+    currentPanelWidth = newWidth;
     panelEl.style.width = newWidth + 'px';
-    panelEl.style.transition = 'none'; // Disable transition during drag
+    panelEl.style.transition = 'none';
+    // Also adjust ChatGPT layout in real-time during drag
+    adjustChatGPTLayout(true, newWidth);
   });
 
   window.addEventListener('mouseup', () => {
@@ -497,7 +543,7 @@
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     if (panelEl) {
-      panelEl.style.transition = 'transform 0.3s ease'; // Restore transition
+      panelEl.style.transition = 'transform 0.3s ease';
     }
   });
 
@@ -510,6 +556,18 @@
       if (panelEl) {
         panelEl.style.transition = 'transform 0.3s ease';
       }
+    }
+  });
+
+  // Also adjust layout when window resizes
+  window.addEventListener('resize', () => {
+    if (panelVisible && panelEl) {
+      // Ensure panel doesn't exceed window width
+      if (currentPanelWidth > window.innerWidth * 0.6) {
+        currentPanelWidth = Math.floor(window.innerWidth * 0.5);
+        panelEl.style.width = currentPanelWidth + 'px';
+      }
+      adjustChatGPTLayout(true, currentPanelWidth);
     }
   });
 
