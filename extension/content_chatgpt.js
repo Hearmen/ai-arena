@@ -27,6 +27,10 @@
   let initAttempts = 0;
   const MAX_INIT_ATTEMPTS = 20;
 
+  // Resize state (module-level to avoid duplicate listeners)
+  let isResizing = false;
+  let resizeHandleEl = null;
+
   // ───────────────────────────────────────────────
   // Prompt Builder
   // ───────────────────────────────────────────────
@@ -204,27 +208,20 @@
     document.body.appendChild(panelEl);
 
     // Resize handle
-    const resizeHandle = document.createElement('div');
-    resizeHandle.style.cssText = `
+    resizeHandleEl = document.createElement('div');
+    resizeHandleEl.id = 'ai-arena-resize-handle';
+    resizeHandleEl.style.cssText = `
       position: absolute; left: 0; top: 0; bottom: 0;
-      width: 6px; cursor: ew-resize; z-index: 1;
+      width: 6px; cursor: ew-resize; z-index: 1000000;
     `;
-    panelEl.appendChild(resizeHandle);
+    panelEl.appendChild(resizeHandleEl);
 
-    let isResizing = false;
-    resizeHandle.addEventListener('mousedown', (e) => {
+    resizeHandleEl.addEventListener('mousedown', (e) => {
       isResizing = true;
       document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
       e.preventDefault();
-    });
-    document.addEventListener('mousemove', (e) => {
-      if (!isResizing) return;
-      const newWidth = Math.max(300, Math.min(800, window.innerWidth - e.clientX));
-      panelEl.style.width = newWidth + 'px';
-    });
-    document.addEventListener('mouseup', () => {
-      isResizing = false;
-      document.body.style.cursor = '';
+      e.stopPropagation();
     });
 
     console.log('[AI Arena] Side panel created');
@@ -483,6 +480,38 @@
     }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // ───────────────────────────────────────────────
+  // Global resize handlers (registered once at module level)
+  // ───────────────────────────────────────────────
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizing || !panelEl) return;
+    const newWidth = Math.max(300, Math.min(800, window.innerWidth - e.clientX));
+    panelEl.style.width = newWidth + 'px';
+    panelEl.style.transition = 'none'; // Disable transition during drag
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isResizing) return;
+    isResizing = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (panelEl) {
+      panelEl.style.transition = 'transform 0.3s ease'; // Restore transition
+    }
+  });
+
+  // Safety: if mouse leaves window during resize
+  window.addEventListener('mouseleave', () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (panelEl) {
+        panelEl.style.transition = 'transform 0.3s ease';
+      }
+    }
+  });
 
   // Cleanup
   window.addEventListener('beforeunload', () => {
