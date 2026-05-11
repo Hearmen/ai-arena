@@ -141,9 +141,23 @@
       return allMessages;
     }
 
-    // Return the pair: user message before last assistant + last assistant
-    const startIndex = lastAssistantIndex - 1 >= 0 ? lastAssistantIndex - 1 : 0;
-    return allMessages.slice(startIndex, lastAssistantIndex + 1);
+    // Find the user message immediately before the last assistant
+    // Walk backwards from lastAssistantIndex-1 to find the nearest user message
+    let lastUserIndex = -1;
+    for (let i = lastAssistantIndex - 1; i >= 0; i--) {
+      if (allMessages[i].role === 'user') {
+        lastUserIndex = i;
+        break;
+      }
+    }
+
+    // If no user message found before assistant, just return the assistant
+    if (lastUserIndex === -1) {
+      return [allMessages[lastAssistantIndex]];
+    }
+
+    // Return the pair: last user message + last assistant message
+    return [allMessages[lastUserIndex], allMessages[lastAssistantIndex]];
   }
 
   // ───────────────────────────────────────────────
