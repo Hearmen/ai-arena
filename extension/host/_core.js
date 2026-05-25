@@ -52,7 +52,38 @@
     updateModelUI();
 
     if (panelEl && iframeEl) {
-      iframeEl.src = getModelConfig().iframeSrc;
+      const cfg = getModelConfig();
+      if (cfg.iframeSrc) {
+        iframeEl.src = cfg.iframeSrc;
+      } else {
+        // Show placeholder when no provider selected
+        iframeEl.src = 'about:blank';
+        iframeEl.onload = () => {
+          const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+          if (doc) {
+            doc.open();
+            doc.write(`
+              <!DOCTYPE html>
+              <html>
+              <head><meta charset="UTF-8"><style>
+                body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb; color: #6b7280; text-align: center; }
+                .wrap { padding: 20px; }
+                h3 { margin: 0 0 8px; font-size: 16px; color: #374151; }
+                p { margin: 0; font-size: 14px; }
+              </style></head>
+              <body>
+                <div class="wrap">
+                  <h3>AI Arena 已关闭</h3>
+                  <p>请从上方下拉框选择要使用的分析平台</p>
+                </div>
+              </body>
+              </html>
+            `);
+            doc.close();
+          }
+        };
+        iframeEl.onload?.();
+      }
     }
 
     // Re-inject analyze button with new label
@@ -176,9 +207,37 @@
     header.appendChild(closeBtn);
 
     iframeEl = document.createElement('iframe');
-    iframeEl.src = cfg.iframeSrc;
     iframeEl.style.cssText = 'flex: 1; border: none; width: 100%;';
     iframeEl.allow = 'clipboard-write';
+    if (cfg.iframeSrc) {
+      iframeEl.src = cfg.iframeSrc;
+    } else {
+      iframeEl.src = 'about:blank';
+      iframeEl.onload = () => {
+        const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="UTF-8"><style>
+              body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb; color: #6b7280; text-align: center; }
+              .wrap { padding: 20px; }
+              h3 { margin: 0 0 8px; font-size: 16px; color: #374151; }
+              p { margin: 0; font-size: 14px; }
+            </style></head>
+            <body>
+              <div class="wrap">
+                <h3>AI Arena 已关闭</h3>
+                <p>请从上方下拉框选择要使用的分析平台</p>
+              </div>
+            </body>
+            </html>
+          `);
+          doc.close();
+        }
+      };
+    }
 
     panelEl.appendChild(header);
     panelEl.appendChild(iframeEl);
@@ -225,6 +284,12 @@
   function sendAnalyzeRequest() {
     if (!platformAdapter) {
       console.error('[AI Arena] No platform adapter registered');
+      return;
+    }
+
+    if (currentProvider === 'none') {
+      window.AIArena.Utils.showNotification('请先选择分析平台（点击面板顶部下拉框）', 'error');
+      ensurePanelVisible();
       return;
     }
 

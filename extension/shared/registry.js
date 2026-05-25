@@ -31,6 +31,16 @@
     },
 
     models: {
+      none: {
+        name: '关闭',
+        title: 'AI Arena 已关闭',
+        iframeSrc: '',
+        btnText: '请先选择分析平台',
+        fabTitle: 'AI Arena',
+        fabIcon: '🔒',
+        color: '#9ca3af',
+        shadowColor: 'rgba(156, 163, 175, 0.4)',
+      },
       kimi: {
         name: 'Kimi',
         title: '🎯 Kimi 分析面板',
