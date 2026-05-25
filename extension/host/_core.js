@@ -74,7 +74,7 @@
               <body>
                 <div class="wrap">
                   <h3>AI Arena 已关闭</h3>
-                  <p>请从上方下拉框选择要使用的分析平台</p>
+                  <p>请在扩展弹出页面选择分析平台</p>
                 </div>
               </body>
               </html>
@@ -114,8 +114,6 @@
       analyzeBtn.style.background = cfg.color;
     }
 
-    const selector = panelEl?.querySelector('#ai-arena-provider-selector');
-    if (selector) selector.value = currentProvider;
   }
 
   // ───────────────────────────────────────────────
@@ -168,30 +166,7 @@
     title.textContent = cfg.title;
     title.style.cssText = 'font-weight: 600; font-size: 14px; color: #111827; white-space: nowrap;';
 
-    const selector = document.createElement('select');
-    selector.id = 'ai-arena-provider-selector';
-    selector.style.cssText = `
-      font-size: 12px;
-      padding: 4px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: #fff;
-      color: #374151;
-      cursor: pointer;
-      outline: none;
-      flex-shrink: 0;
-    `;
-    for (const key of window.AIArena.Registry.getModelKeys()) {
-      const option = document.createElement('option');
-      option.value = key;
-      option.textContent = window.AIArena.Registry.getModel(key).name;
-      selector.appendChild(option);
-    }
-    selector.value = currentProvider;
-    selector.addEventListener('change', (e) => switchModel(e.target.value));
-
     titleWrapper.appendChild(title);
-    titleWrapper.appendChild(selector);
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';

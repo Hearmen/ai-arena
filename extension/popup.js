@@ -56,13 +56,15 @@
     }
   });
 
+  const providerNames = { kimi: 'Kimi', doubao: '豆包', none: '关闭' };
+
   // Provider select change
   providerSelect.addEventListener('change', () => {
     const provider = providerSelect.value;
     chrome.storage.sync.set({ aiArenaProvider: provider }, () => {
       sendToActiveTab({ type: 'switch_provider', provider }, (response) => {
         if (response && response.success) {
-          showStatus(`已切换到 ${provider === 'kimi' ? 'Kimi' : '豆包'}`, 'success');
+          showStatus(`已切换到 ${providerNames[provider] || provider}`, 'success');
         }
       });
     });
