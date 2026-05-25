@@ -5,8 +5,12 @@
   "description": "在 ChatGPT 对话时获得 Kimi / 豆包 的批判性分析",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "webRequest"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://gemini.google.com/*",
