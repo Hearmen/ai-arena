@@ -209,6 +209,14 @@
     if (!panelEl) return;
     panelVisible = !panelVisible;
     panelEl.style.transform = panelVisible ? 'translateX(0)' : 'translateX(100%)';
+
+    // Universal fallback: adjust body padding so fixed panel never overlaps content
+    const padding = panelVisible ? `${currentPanelWidth}px` : '0px';
+    document.documentElement.style.paddingRight = padding;
+    document.documentElement.style.transition = 'padding-right 0.3s ease';
+    document.body.style.paddingRight = padding;
+    document.body.style.transition = 'padding-right 0.3s ease';
+
     if (platformAdapter && platformAdapter.adjustLayout) {
       platformAdapter.adjustLayout(panelVisible, currentPanelWidth);
     }
@@ -265,6 +273,10 @@
     currentPanelWidth = newWidth;
     panelEl.style.width = newWidth + 'px';
     panelEl.style.transition = 'none';
+    document.documentElement.style.paddingRight = `${newWidth}px`;
+    document.documentElement.style.transition = 'none';
+    document.body.style.paddingRight = `${newWidth}px`;
+    document.body.style.transition = 'none';
     if (platformAdapter && platformAdapter.adjustLayout) {
       platformAdapter.adjustLayout(true, newWidth);
     }
@@ -276,6 +288,8 @@
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     if (panelEl) panelEl.style.transition = 'transform 0.3s ease';
+    document.documentElement.style.transition = 'padding-right 0.3s ease';
+    document.body.style.transition = 'padding-right 0.3s ease';
   });
 
   window.addEventListener('mouseleave', () => {
@@ -284,6 +298,8 @@
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       if (panelEl) panelEl.style.transition = 'transform 0.3s ease';
+      document.documentElement.style.transition = 'padding-right 0.3s ease';
+      document.body.style.transition = 'padding-right 0.3s ease';
     }
   });
 
@@ -293,6 +309,8 @@
         currentPanelWidth = Math.floor(window.innerWidth * 0.5);
         panelEl.style.width = currentPanelWidth + 'px';
       }
+      document.documentElement.style.paddingRight = `${currentPanelWidth}px`;
+      document.body.style.paddingRight = `${currentPanelWidth}px`;
       if (platformAdapter && platformAdapter.adjustLayout) {
         platformAdapter.adjustLayout(true, currentPanelWidth);
       }
