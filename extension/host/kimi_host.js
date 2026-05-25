@@ -131,6 +131,10 @@
   }
 
   function injectAnalyzeButton(onClick) {
+    // Reset flag if button was removed from DOM (SPA re-render)
+    if (isButtonInjected && !document.getElementById('ai-arena-analyze-btn')) {
+      isButtonInjected = false;
+    }
     if (isButtonInjected) return;
     if (document.getElementById('ai-arena-analyze-btn')) {
       isButtonInjected = true;
