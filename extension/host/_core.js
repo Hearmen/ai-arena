@@ -40,9 +40,17 @@
     return window.AIArena.Registry.getModel(key || currentProvider);
   }
 
+  function removeButtons() {
+    const fab = document.getElementById('ai-arena-floating-btn');
+    if (fab) fab.remove();
+    const analyzeBtn = document.getElementById('ai-arena-analyze-btn');
+    if (analyzeBtn) analyzeBtn.remove();
+  }
+
   function switchModel(modelKey) {
     const Registry = window.AIArena.Registry;
     if (!Registry.getModel(modelKey) || modelKey === currentProvider) return;
+    const wasNone = currentProvider === 'none';
     currentProvider = modelKey;
 
     if (chrome.storage && chrome.storage.sync) {
@@ -50,6 +58,19 @@
     }
 
     updateModelUI();
+
+    if (currentProvider === 'none') {
+      removeButtons();
+      if (panelVisible) togglePanel();
+    } else if (wasNone && platformAdapter) {
+      // Re-enable buttons when switching from none to active
+      if (platformAdapter.injectFloatingButton) {
+        platformAdapter.injectFloatingButton(togglePanel);
+      }
+      if (platformAdapter.injectAnalyzeButton) {
+        platformAdapter.injectAnalyzeButton(sendAnalyzeRequest);
+      }
+    }
 
     if (panelEl && iframeEl) {
       const cfg = getModelConfig();
@@ -394,6 +415,12 @@
   function initPlatform() {
     if (!platformAdapter) return;
 
+    // Skip button injection when disabled
+    if (currentProvider === 'none') {
+      removeButtons();
+      return;
+    }
+
     // Inject floating button
     if (platformAdapter.injectFloatingButton) {
       platformAdapter.injectFloatingButton(togglePanel);
@@ -401,6 +428,7 @@
 
     // Inject analyze button (delayed for lazy-loaded UI)
     setTimeout(() => {
+      if (currentProvider === 'none') return;
       if (platformAdapter.injectAnalyzeButton) {
         platformAdapter.injectAnalyzeButton(sendAnalyzeRequest);
       }
@@ -408,6 +436,7 @@
 
     // Periodic retry for lazy loading
     const retryInterval = setInterval(() => {
+      if (currentProvider === 'none') return;
       if (!document.getElementById('ai-arena-floating-btn')) {
         if (platformAdapter.injectFloatingButton) {
           platformAdapter.injectFloatingButton(togglePanel);
@@ -428,6 +457,7 @@
         lastUrl = url;
         console.log('[AI Arena] URL changed, re-injecting buttons');
         setTimeout(() => {
+          if (currentProvider === 'none') return;
           if (platformAdapter.injectAnalyzeButton) {
             platformAdapter.injectAnalyzeButton(sendAnalyzeRequest);
           }
