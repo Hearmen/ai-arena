@@ -9,6 +9,7 @@
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
     "https://kimi.com/*",
     "https://www.kimi.com/*",
     "https://www.doubao.com/*"
@@ -36,6 +37,45 @@
     {
       "matches": ["https://www.doubao.com/*"],
       "js": ["panel/doubao.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": [
+        "shared/utils.js",
+        "shared/registry.js",
+        "host/prompt.js",
+        "host/_core.js",
+        "host/_ui.js",
+        "host/gemini.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://kimi.com/*", "https://www.kimi.com/*"],
+      "js": [
+        "shared/utils.js",
+        "shared/registry.js",
+        "host/prompt.js",
+        "host/_core.js",
+        "host/_ui.js",
+        "host/kimi_host.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.doubao.com/*"],
+      "js": [
+        "shared/utils.js",
+        "shared/registry.js",
+        "host/prompt.js",
+        "host/_core.js",
+        "host/_ui.js",
+        "host/doubao_host.js"
+      ],
       "all_frames": true,
       "run_at": "document_idle"
     }
