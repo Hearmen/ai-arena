@@ -16,7 +16,18 @@
         name: 'ChatGPT',
         matches: ['https://chatgpt.com/*'],
       },
-      // Future: claude, gemini, etc.
+      gemini: {
+        name: 'Gemini',
+        matches: ['https://gemini.google.com/*'],
+      },
+      kimi: {
+        name: 'Kimi',
+        matches: ['https://kimi.com/*', 'https://www.kimi.com/*'],
+      },
+      doubao: {
+        name: '豆包',
+        matches: ['https://www.doubao.com/*'],
+      },
     },
 
     models: {
