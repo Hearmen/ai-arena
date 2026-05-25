@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AI Arena 工作流</title>
+  <desc id="desc">原创二次元舰装风流程图：从 ChatGPT DOM 到本地 prompt，再经 postMessage 进入 Kimi 面板。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b0f16"/><stop offset=".55" stop-color="#171c26"/><stop offset="1" stop-color="#360911"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .box{fill:#202633;stroke:#eef2f7;stroke-width:3}.core{fill:#3d1018;stroke:#ff334e;stroke-width:4;filter:url(#glow)}
+      .line{fill:none;stroke:#eef2f7;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.redline{fill:none;stroke:#ff334e;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .thin{fill:none;stroke:#8fa0b9;stroke-width:2;stroke-linecap:round}.text{font-family:Arial,"PingFang SC",sans-serif;font-weight:800;fill:#f8fafc;font-size:30px}.small{font-size:21px}.tiny{font-size:16px;fill:#cbd5e1}
+      .white{fill:#eef2f7}.red{fill:#e11d38}.steel{fill:#2a3342;stroke:#f8fafc;stroke-width:3}
+    </style>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <path class="thin" d="M40 540 h1120 M120 588 h960 M210 626 h780"/>
+  <text class="text" x="386" y="72">一次点击背后的航路</text>
+  <g transform="translate(80 150)">
+    <rect class="box" width="180" height="130" rx="16"/><text class="text small" x="44" y="56">对话</text><text class="tiny" x="34" y="91">ChatGPT DOM</text>
+    <path class="thin" d="M24 26 h132 M24 108 h132"/>
+  </g>
+  <g transform="translate(300 150)">
+    <rect class="box" width="180" height="130" rx="16"/><text class="text small" x="44" y="56">提取</text><text class="tiny" x="36" y="91">content script</text>
+    <path class="thin" d="M40 31 v78 M78 31 v78 M116 31 v78"/>
+  </g>
+  <g transform="translate(520 150)">
+    <rect class="core" width="180" height="130" rx="16"/><text class="text small" x="44" y="56">包装</text><text class="tiny" x="44" y="91">critic prompt</text>
+    <path class="redline" d="M35 108 h110"/>
+  </g>
+  <g transform="translate(740 150)">
+    <rect class="box" width="180" height="130" rx="16"/><text class="text small" x="31" y="56">传递</text><text class="tiny" x="42" y="91">postMessage</text>
+    <path class="thin" d="M30 98 C74 48 110 48 154 98"/>
+  </g>
+  <g transform="translate(960 150)">
+    <rect class="box" width="160" height="130" rx="16"/><text class="text small" x="52" y="56">复核</text><text class="tiny" x="55" y="91">Kimi</text>
+    <path class="thin" d="M34 32 h92 M34 68 h92 M34 104 h92"/>
+  </g>
+  <path class="redline" d="M262 215 h34 M482 215 h34 M702 215 h34 M922 215 h34"/>
+  <path class="line" d="M289 199 l24 16 -24 16 M509 199 l24 16 -24 16 M729 199 l24 16 -24 16 M949 199 l24 16 -24 16"/>
+  <g transform="translate(600 430)">
+    <circle r="92" fill="#111827" stroke="#ff334e" stroke-width="4" filter="url(#glow)"/>
+    <circle r="58" fill="none" stroke="#eef2f7" stroke-width="2" opacity=".65"/>
+    <path class="redline" d="M0 0 L62 -42"/>
+    <path class="thin" d="M-92 0 h184 M0 -92 v184 M-65 -65 l130 130 M65 -65 -65 65"/>
+    <path class="steel" d="M-150 72 h300 l28 48 h-356z"/>
+    <text class="tiny" x="-62" y="122">LOCAL ONLY</text>
+  </g>
+  <path class="thin" d="M170 280 C270 355 415 410 508 430 M1035 280 C930 355 785 410 692 430"/>
+  <text class="tiny" x="404" y="628">no backend / no api key / webpage automation</text>
+</svg>

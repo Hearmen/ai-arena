@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AI Arena 使用场景</title>
+  <desc id="desc">原创二次元舰装风插画：黑红白海军科技氛围中，指挥官在 ChatGPT 和 Kimi 两块战术屏之间复核答案。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10131a"/>
+      <stop offset="0.48" stop-color="#1d2029"/>
+      <stop offset="1" stop-color="#3a0d12"/>
+    </linearGradient>
+    <linearGradient id="panelBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8f2ff"/>
+      <stop offset="1" stop-color="#8cb7e8"/>
+    </linearGradient>
+    <linearGradient id="panelRed" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1f2"/>
+      <stop offset="1" stop-color="#ef6f78"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .line{fill:none;stroke:#f5f5f5;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+      .thin{fill:none;stroke:#b8c4d6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+      .redline{fill:none;stroke:#ff334e;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .text{font-family:Arial,"PingFang SC",sans-serif;font-weight:800;fill:#f8fafc;font-size:34px}
+      .small{font-size:22px;font-weight:700}.tiny{font-size:16px;font-weight:600;fill:#dbe4f0}
+      .metal{fill:#242a35;stroke:#f8fafc;stroke-width:3}.dark{fill:#11151d}.white{fill:#f4f7fb}.red{fill:#d71935}
+    </style>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <path d="M0 560 C190 520 330 592 520 548 C720 502 850 585 1200 520 L1200 675 L0 675 Z" fill="#090b10" opacity=".72"/>
+  <path class="thin" d="M80 575 h1040 M170 620 h870 M295 535 h610"/>
+  <circle cx="600" cy="310" r="205" fill="none" stroke="#ff334e" stroke-width="2" opacity=".35"/>
+  <circle cx="600" cy="310" r="135" fill="none" stroke="#f8fafc" stroke-width="2" opacity=".18"/>
+  <path class="thin" d="M600 105 v410 M395 310 h410 M456 166 l288 288 M744 166 456 454"/>
+  <rect x="78" y="116" width="330" height="300" rx="18" fill="url(#panelBlue)" stroke="#f8fafc" stroke-width="4"/>
+  <rect x="792" y="116" width="330" height="300" rx="18" fill="url(#panelRed)" stroke="#f8fafc" stroke-width="4"/>
+  <text class="text" x="168" y="170" fill="#11151d">ChatGPT</text>
+  <text class="text" x="900" y="170" fill="#11151d">Kimi</text>
+  <path class="thin" stroke="#172033" d="M125 222 h238 M125 270 h205 M125 318 h250 M838 222 h235 M838 270 h190 M838 318 h245"/>
+  <path class="redline" d="M410 268 C482 228 532 220 566 244"/>
+  <path class="redline" d="M790 268 C718 228 668 220 634 244"/>
+  <path class="redline" d="M413 269 l42 -2 M413 269 l29 -31 M787 269 l-42 -2 M787 269 l-29 -31"/>
+  <g transform="translate(600 325)">
+    <path class="metal" d="M-72 -112 C-40 -154 40 -154 72 -112 L58 0 C42 28 -42 28 -58 0 Z"/>
+    <path class="white" d="M-46 -92 C-20 -120 20 -120 46 -92 C34 -78 18 -70 0 -70 C-18 -70 -34 -78 -46 -92Z"/>
+    <path class="line" d="M-36 -35 C-15 -20 15 -20 36 -35"/>
+    <circle cx="-26" cy="-58" r="5" fill="#11151d"/>
+    <circle cx="26" cy="-58" r="5" fill="#11151d"/>
+    <path class="red" d="M-8 -126 h16 v44 H-8z"/>
+    <path class="metal" d="M-108 -26 l-92 -54 -25 40 92 64 Z"/>
+    <path class="metal" d="M108 -26 l92 -54 25 40 -92 64 Z"/>
+    <path class="line" d="M-84 10 h168 M-48 24 v110 M48 24 v110"/>
+    <path class="metal" d="M-156 108 h312 l42 72 h-396z"/>
+    <path class="red" d="M-130 134 h260 l18 28 h-296z"/>
+  </g>
+  <text class="text small" x="404" y="76">双模型复核：让答案进入战术屏</text>
+  <text class="tiny" x="484" y="635">AI Arena / browser extension / local prompt bridge</text>
+</svg>

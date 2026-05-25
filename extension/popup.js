@@ -11,6 +11,7 @@
 
 {conversation_history}`;
 
+  const providerSelect = document.getElementById('providerSelect');
   const textarea = document.getElementById('promptTemplate');
   const applyBtn = document.getElementById('applyBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -39,6 +40,13 @@
     });
   }
 
+  // Load saved provider preference
+  chrome.storage.sync.get(['aiArenaProvider'], (result) => {
+    if (result.aiArenaProvider) {
+      providerSelect.value = result.aiArenaProvider;
+    }
+  });
+
   // Load current template from content script
   sendToActiveTab({ type: 'get_prompt_template' }, (response) => {
     if (response && response.template) {
@@ -46,6 +54,18 @@
     } else {
       textarea.value = DEFAULT_TEMPLATE;
     }
+  });
+
+  // Provider select change
+  providerSelect.addEventListener('change', () => {
+    const provider = providerSelect.value;
+    chrome.storage.sync.set({ aiArenaProvider: provider }, () => {
+      sendToActiveTab({ type: 'switch_provider', provider }, (response) => {
+        if (response && response.success) {
+          showStatus(`已切换到 ${provider === 'kimi' ? 'Kimi' : '豆包'}`, 'success');
+        }
+      });
+    });
   });
 
   // Apply button

@@ -1,11 +1,11 @@
 /**
- * AI Arena — ChatGPT Content Script (V2.1)
+ * AI Arena — ChatGPT Content Script (V2.2)
  *
  * Injected into chatgpt.com to:
  * 1. Extract conversation history
- * 2. Inject floating button 🎯 and side panel with Kimi iframe
- * 3. Inject "让 Kimi 分析" button into ChatGPT input area
- * 4. Build prompt locally and send to Kimi iframe via postMessage
+ * 2. Inject floating button 🎯 and side panel with AI iframe (Kimi / Doubao)
+ * 3. Inject "让 AI 分析" button into ChatGPT input area
+ * 4. Build prompt locally and send to AI iframe via postMessage
  */
 
 (function () {
@@ -16,7 +16,7 @@
     return;
   }
 
-  console.log('[AI Arena] ChatGPT content script loaded (V2.1)');
+  console.log('[AI Arena] ChatGPT content script loaded (V2.2)');
 
   const INJECTION_DELAY_MS = 2000;
   const RETRY_INTERVAL_MS = 3000;
@@ -28,6 +28,41 @@
   const MAX_INIT_ATTEMPTS = 20;
   const DEFAULT_PANEL_WIDTH = 420;
   let currentPanelWidth = DEFAULT_PANEL_WIDTH;
+
+  // AI Provider configuration
+  const PROVIDERS = {
+    kimi: {
+      name: 'Kimi',
+      title: '🎯 Kimi 分析面板',
+      iframeSrc: 'https://kimi.com',
+      btnText: '🎯 让 Kimi 分析',
+      fabTitle: 'Kimi 分析面板',
+      color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      shadowColor: 'rgba(102, 126, 234, 0.4)',
+    },
+    doubao: {
+      name: '豆包',
+      title: '📦 豆包分析面板',
+      iframeSrc: 'https://www.doubao.com/chat',
+      btnText: '📦 让豆包分析',
+      fabTitle: '豆包分析面板',
+      color: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
+      shadowColor: 'rgba(238, 90, 36, 0.4)',
+    },
+  };
+
+  let currentProvider = 'kimi';
+
+  // Load saved provider preference
+  if (chrome.storage && chrome.storage.sync) {
+    chrome.storage.sync.get(['aiArenaProvider'], (result) => {
+      if (result.aiArenaProvider && PROVIDERS[result.aiArenaProvider]) {
+        currentProvider = result.aiArenaProvider;
+        console.log('[AI Arena] Loaded provider preference:', currentProvider);
+        updateProviderUI();
+      }
+    });
+  }
 
   // Resize state (module-level to avoid duplicate listeners)
   let isResizing = false;
@@ -142,7 +177,6 @@
     }
 
     // Find the user message immediately before the last assistant
-    // Walk backwards from lastAssistantIndex-1 to find the nearest user message
     let lastUserIndex = -1;
     for (let i = lastAssistantIndex - 1; i >= 0; i--) {
       if (allMessages[i].role === 'user') {
@@ -195,7 +229,66 @@
   }
 
   // ───────────────────────────────────────────────
-  // UI: Side Panel with Kimi iframe
+  // Provider Switching
+  // ───────────────────────────────────────────────
+  function switchProvider(providerKey) {
+    if (!PROVIDERS[providerKey] || providerKey === currentProvider) return;
+    currentProvider = providerKey;
+
+    // Save preference
+    if (chrome.storage && chrome.storage.sync) {
+      chrome.storage.sync.set({ aiArenaProvider: providerKey });
+    }
+
+    // Update existing UI
+    updateProviderUI();
+
+    // If panel is open, reload iframe
+    if (panelEl && iframeEl) {
+      iframeEl.src = PROVIDERS[providerKey].iframeSrc;
+    }
+
+    // Re-inject analyze button to update text
+    isButtonInjected = false;
+    injectAnalyzeButton();
+
+    console.log('[AI Arena] Switched provider to:', providerKey);
+    showNotification(`已切换到 ${PROVIDERS[providerKey].name}`);
+  }
+
+  function updateProviderUI() {
+    const cfg = PROVIDERS[currentProvider];
+
+    // Update panel title if exists
+    const panelTitle = panelEl?.querySelector('#ai-arena-panel-title');
+    if (panelTitle) {
+      panelTitle.textContent = cfg.title;
+    }
+
+    // Update floating button title
+    const fab = document.getElementById('ai-arena-floating-btn');
+    if (fab) {
+      fab.title = cfg.fabTitle;
+      fab.style.background = cfg.color;
+      fab.style.boxShadow = `0 4px 12px ${cfg.shadowColor}`;
+    }
+
+    // Update analyze button text
+    const analyzeBtn = document.getElementById('ai-arena-analyze-btn');
+    if (analyzeBtn) {
+      analyzeBtn.textContent = cfg.btnText;
+      analyzeBtn.style.background = cfg.color;
+    }
+
+    // Update provider selector if exists
+    const selector = panelEl?.querySelector('#ai-arena-provider-selector');
+    if (selector) {
+      selector.value = currentProvider;
+    }
+  }
+
+  // ───────────────────────────────────────────────
+  // UI: Side Panel with AI iframe
   // ───────────────────────────────────────────────
   function createSidePanel() {
     if (panelEl) return;
@@ -203,6 +296,8 @@
       console.log('[AI Arena] document.body not ready, cannot create panel');
       return;
     }
+
+    const cfg = PROVIDERS[currentProvider];
 
     panelEl = document.createElement('div');
     panelEl.id = 'ai-arena-panel';
@@ -231,24 +326,60 @@
       border-bottom: 1px solid #e5e7eb;
       background: #f9fafb;
       flex-shrink: 0;
+      gap: 8px;
     `;
+
+    const titleWrapper = document.createElement('div');
+    titleWrapper.style.cssText = 'display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;';
+
     const title = document.createElement('span');
-    title.textContent = '🎯 Kimi 分析面板';
-    title.style.cssText = 'font-weight: 600; font-size: 14px; color: #111827;';
+    title.id = 'ai-arena-panel-title';
+    title.textContent = cfg.title;
+    title.style.cssText = 'font-weight: 600; font-size: 14px; color: #111827; white-space: nowrap;';
+
+    // Provider selector dropdown
+    const selector = document.createElement('select');
+    selector.id = 'ai-arena-provider-selector';
+    selector.style.cssText = `
+      font-size: 12px;
+      padding: 4px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      color: #374151;
+      cursor: pointer;
+      outline: none;
+      flex-shrink: 0;
+    `;
+    for (const [key, p] of Object.entries(PROVIDERS)) {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = p.name;
+      selector.appendChild(option);
+    }
+    selector.value = currentProvider;
+    selector.addEventListener('change', (e) => {
+      switchProvider(e.target.value);
+    });
+
+    titleWrapper.appendChild(title);
+    titleWrapper.appendChild(selector);
+
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = `
       background: none; border: none; font-size: 16px; cursor: pointer;
-      color: #6b7280; padding: 4px 8px; border-radius: 4px;
+      color: #6b7280; padding: 4px 8px; border-radius: 4px; flex-shrink: 0;
     `;
     closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = '#e5e7eb');
     closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'none');
     closeBtn.addEventListener('click', togglePanel);
-    header.appendChild(title);
+
+    header.appendChild(titleWrapper);
     header.appendChild(closeBtn);
 
     iframeEl = document.createElement('iframe');
-    iframeEl.src = 'https://kimi.com';
+    iframeEl.src = cfg.iframeSrc;
     iframeEl.style.cssText = 'flex: 1; border: none; width: 100%;';
     iframeEl.allow = 'clipboard-write';
 
@@ -280,7 +411,6 @@
   // Layout adjustment: shrink ChatGPT main area when panel opens
   // ───────────────────────────────────────────────
   function findChatGPTMainElement() {
-    // ChatGPT uses different main containers; try common ones
     const selectors = [
       'main[role="main"]',
       'main',
@@ -339,10 +469,12 @@
       return;
     }
 
+    const cfg = PROVIDERS[currentProvider];
+
     const btn = document.createElement('button');
     btn.id = 'ai-arena-floating-btn';
     btn.textContent = '🎯';
-    btn.title = 'Kimi 分析面板';
+    btn.title = cfg.fabTitle;
     btn.style.cssText = `
       position: fixed;
       bottom: 24px;
@@ -350,13 +482,13 @@
       width: 48px;
       height: 48px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: ${cfg.color};
       color: white;
       border: none;
       font-size: 20px;
       cursor: pointer;
       z-index: 999998;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 12px ${cfg.shadowColor};
       transition: transform 0.2s, box-shadow 0.2s;
       display: flex;
       align-items: center;
@@ -364,11 +496,11 @@
     `;
     btn.addEventListener('mouseenter', () => {
       btn.style.transform = 'scale(1.1)';
-      btn.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+      btn.style.boxShadow = `0 6px 20px ${cfg.shadowColor.replace('0.4', '0.5')}`;
     });
     btn.addEventListener('mouseleave', () => {
       btn.style.transform = 'scale(1)';
-      btn.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+      btn.style.boxShadow = `0 4px 12px ${cfg.shadowColor}`;
     });
     btn.addEventListener('click', togglePanel);
     document.body.appendChild(btn);
@@ -385,23 +517,20 @@
       return;
     }
 
+    const cfg = PROVIDERS[currentProvider];
+
     // Updated selectors for ChatGPT UI (2025)
     const insertionSelectors = [
-      // New ChatGPT UI (composer-based)
       '[data-testid="send-button"]',
       'button[data-testid="send-button"]',
       'form button[data-testid="send-button"]',
-      // Alternative: look for the submit button in the composer
       '[class*="composer"] button[type="submit"]',
       '[class*="composer"] [data-testid="send-button"]',
-      // Text-based aria labels
       'button[aria-label*="Send"]',
       'button[aria-label*="发送"]',
-      // Generic fallbacks
       'form .btn-primary',
       'form button',
       '[class*="input-area"] button',
-      // Very broad fallback
       'button svg[data-icon="arrow-up"]',
       'button svg[data-icon="ArrowUp"]',
     ];
@@ -426,11 +555,11 @@
 
     const button = document.createElement('button');
     button.id = 'ai-arena-analyze-btn';
-    button.textContent = '🎯 让 Kimi 分析';
+    button.textContent = cfg.btnText;
     button.style.cssText = `
       margin-left: 8px;
       padding: 8px 16px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: ${cfg.color};
       color: white;
       border: none;
       border-radius: 8px;
@@ -442,7 +571,7 @@
     `;
     button.addEventListener('mouseenter', () => {
       button.style.transform = 'scale(1.05)';
-      button.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+      button.style.boxShadow = `0 4px 12px ${cfg.shadowColor}`;
     });
     button.addEventListener('mouseleave', () => {
       button.style.transform = 'scale(1)';
@@ -456,9 +585,7 @@
 
     // Try to find the best container to insert into
     let container = targetElement.parentElement;
-    // If target is deep inside, try to find the action bar/container
     if (container) {
-      // Walk up to find a flex container that looks like the input action bar
       let current = container;
       for (let i = 0; i < 4 && current; i++) {
         const style = window.getComputedStyle(current);
@@ -475,7 +602,6 @@
       isButtonInjected = true;
       console.log('[AI Arena] Analyze button injected');
     } else {
-      // Fallback: insert next to target
       targetElement.insertAdjacentElement('afterend', button);
       isButtonInjected = true;
       console.log('[AI Arena] Analyze button injected (fallback)');
@@ -499,6 +625,8 @@
 
     ensurePanelVisible();
 
+    const cfg = PROVIDERS[currentProvider];
+
     // Wait a bit for iframe to be ready if just created
     setTimeout(() => {
       if (iframeEl && iframeEl.contentWindow) {
@@ -507,9 +635,9 @@
           type: 'analyze_conversation',
           payload: { prompt }
         }, '*');
-        showNotification('已发送给 Kimi 分析，请查看右侧面板');
+        showNotification(`已发送给 ${cfg.name} 分析，请查看右侧面板`);
       } else {
-        showNotification('Kimi 面板未就绪，请稍后再试', 'error');
+        showNotification(`${cfg.name} 面板未就绪，请稍后再试`, 'error');
       }
     }, iframeEl ? 100 : 800);
   }
@@ -577,7 +705,6 @@
     currentPanelWidth = newWidth;
     panelEl.style.width = newWidth + 'px';
     panelEl.style.transition = 'none';
-    // Also adjust ChatGPT layout in real-time during drag
     adjustChatGPTLayout(true, newWidth);
   });
 
@@ -591,7 +718,6 @@
     }
   });
 
-  // Safety: if mouse leaves window during resize
   window.addEventListener('mouseleave', () => {
     if (isResizing) {
       isResizing = false;
@@ -603,10 +729,8 @@
     }
   });
 
-  // Also adjust layout when window resizes
   window.addEventListener('resize', () => {
     if (panelVisible && panelEl) {
-      // Ensure panel doesn't exceed window width
       if (currentPanelWidth > window.innerWidth * 0.6) {
         currentPanelWidth = Math.floor(window.innerWidth * 0.5);
         panelEl.style.width = currentPanelWidth + 'px';
@@ -637,6 +761,15 @@
         _arenaPromptTemplate = request.template || null;
         console.log('[AI Arena] Prompt template updated');
         sendResponse({ success: true });
+        return true;
+      }
+      if (request.type === 'switch_provider') {
+        switchProvider(request.provider);
+        sendResponse({ success: true, provider: currentProvider });
+        return true;
+      }
+      if (request.type === 'get_provider') {
+        sendResponse({ provider: currentProvider });
         return true;
       }
     });

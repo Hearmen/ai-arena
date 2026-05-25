@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AI Arena 批判效果</title>
+  <desc id="desc">原创二次元舰装风插画：两个战术屏给出不同信号，指挥官关注模型分歧。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset=".52" stop-color="#202431"/><stop offset="1" stop-color="#400a13"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .panel{fill:#151b25;stroke:#eef2f7;stroke-width:4}.redpanel{fill:#2b1018;stroke:#ff334e;stroke-width:4;filter:url(#glow)}
+      .line{fill:none;stroke:#eef2f7;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.thin{fill:none;stroke:#9baabe;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .redline{fill:none;stroke:#ff334e;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .text{font-family:Arial,"PingFang SC",sans-serif;font-weight:800;fill:#f8fafc;font-size:30px}.small{font-size:21px}.tiny{font-size:17px;fill:#dbe4f0}.red{fill:#e11d38}.white{fill:#f8fafc}.steel{fill:#263141;stroke:#f8fafc;stroke-width:3}
+    </style>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <text class="text" x="326" y="72">重点不是谁赢，而是哪里分歧</text>
+  <path class="panel" d="M90 126 h360 q20 0 20 20 v190 q0 20 -20 20 H210 l-60 58 22 -58 H90 q-20 0 -20 -20 V146 q0 -20 20 -20z"/>
+  <path class="redpanel" d="M750 126 h360 q20 0 20 20 v190 q0 20 -20 20 h-78 l28 66 -76 -66 H750 q-20 0 -20 -20 V146 q0 -20 20 -20z"/>
+  <text class="text small" x="164" y="178">主回答</text>
+  <text class="tiny" x="126" y="224">方案结构完整</text><text class="tiny" x="126" y="260">推理看起来顺</text><text class="tiny" x="126" y="296">风险被放在后面</text>
+  <text class="text small" x="842" y="178">复核意见</text>
+  <text class="tiny" x="790" y="224">假设未验证</text><text class="tiny" x="790" y="260">反方论证不足</text><text class="tiny" x="790" y="296">置信度应降低</text>
+  <g transform="translate(600 390)">
+    <path class="steel" d="M-64 -118 C-32 -156 32 -156 64 -118 L56 -12 C39 20 -39 20 -56 -12 Z"/>
+    <path class="white" d="M-38 -94 C-15 -114 15 -114 38 -94 C24 -78 -24 -78 -38 -94Z"/>
+    <circle cx="-24" cy="-55" r="5" fill="#0b0f16"/><circle cx="24" cy="-55" r="5" fill="#0b0f16"/>
+    <path class="line" d="M-28 -26 C-10 -12 10 -12 28 -26"/>
+    <path class="red" d="M-7 -132 h14 v36 H-7z"/>
+    <path class="steel" d="M-116 -20 l-80 -46 -24 38 82 56 Z"/>
+    <path class="steel" d="M116 -20 l80 -46 24 38 -82 56 Z"/>
+    <path class="line" d="M-70 18 h140 M-42 32 v112 M42 32 v112"/>
+    <path class="steel" d="M-140 128 h280 l36 58 h-352z"/>
+  </g>
+  <path class="thin" d="M520 424 C405 400 315 370 212 356 M680 424 C795 400 885 370 988 356"/>
+  <path class="redline" d="M446 520 C525 562 675 562 754 520"/>
+  <path class="redline" d="M745 504 l30 17 -31 16"/>
+  <text class="text small" x="431" y="620">分歧点 = 值得人工复核的信号</text>
+</svg>
