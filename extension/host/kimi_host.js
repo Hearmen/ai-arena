@@ -28,20 +28,40 @@
     try {
       const messages = [];
 
-      // Strategy 1: Kimi message items with data attributes
-      const messageItems = document.querySelectorAll('[data-testid*="message"], [class*="message-item"], [class*="chat-message"], [class*="chat-turn"]');
-      if (messageItems.length > 0) {
-        messageItems.forEach((el) => {
-          const isUser = el.getAttribute('data-testid')?.includes('user') ||
-                         el.querySelector('img[alt*="User"], [class*="avatar-user"], [class*="user"], [class*="human"]') !== null ||
-                         el.className.includes('user') || el.className.includes('human') || el.className.includes('right');
+      // Strategy 1: Kimi message items with data attributes / known classes
+      const messageSelectors = [
+        '[data-testid*="message"]',
+        '[data-role="user"]',
+        '[data-role="assistant"]',
+        '[data-type="user"]',
+        '[data-type="assistant"]',
+        '[class*="message-item"]',
+        '[class*="chat-message"]',
+        '[class*="chat-turn"]',
+        '[class*="conversation-item"]',
+      ];
+
+      for (const sel of messageSelectors) {
+        const items = document.querySelectorAll(sel);
+        if (items.length === 0) continue;
+
+        items.forEach((el) => {
+          const attr = el.getAttribute('data-role') || el.getAttribute('data-type') || '';
+          const isUser =
+            attr === 'user' ||
+            el.getAttribute('data-testid')?.includes('user') ||
+            el.className.includes('user') ||
+            el.className.includes('human') ||
+            el.className.includes('right');
           const role = isUser ? 'user' : 'assistant';
-          const textEl = el.querySelector('.markdown, [class*="content"], [class*="text"], [class*="answer"], [class*="response"], p, div');
-          if (textEl) {
-            const content = textEl.textContent.trim();
-            if (content) messages.push({ role, content });
+
+          // Use innerText to capture all text within the message container
+          const content = el.innerText?.trim();
+          if (content && content.length > 1) {
+            messages.push({ role, content });
           }
         });
+
         if (messages.length > 0) {
           console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 1');
           return messages;
@@ -49,37 +69,38 @@
       }
 
       // Strategy 2: Generic article/message containers
-      const articles = document.querySelectorAll('article, [class*="message"], [class*="bubble"], [class*="turn"]');
-      articles.forEach((article) => {
-        const isUser = article.querySelector('img[alt*="User"], [class*="user"], [class*="human"]') !== null ||
-                       article.classList.contains('user') || article.className.includes('human');
+      const containers = document.querySelectorAll(
+        'article, [class*="message"], [class*="bubble"], [class*="turn"]'
+      );
+      containers.forEach((el) => {
+        const isUser =
+          el.className.includes('user') ||
+          el.className.includes('human') ||
+          el.querySelector('img[alt*="User"], [class*="user"]') !== null;
         const role = isUser ? 'user' : 'assistant';
-        const textEls = article.querySelectorAll('.markdown, p, [class*="text"], div');
-        const content = Array.from(textEls).map(el => el.textContent.trim()).join('\n');
-        if (content) messages.push({ role, content });
+        const content = el.innerText?.trim();
+        if (content && content.length > 1) {
+          messages.push({ role, content });
+        }
       });
       if (messages.length > 0) {
         console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 2');
         return messages;
       }
 
-      // Strategy 3: Fallback — collect all visible text blocks in the main chat area
-      const chatContainer = document.querySelector('main, [class*="chat"], [class*="conversation"], [class*="dialog"]');
-      if (chatContainer) {
-        const textBlocks = chatContainer.querySelectorAll('p, div > div, [class*="text"]');
-        let lastRole = null;
-        textBlocks.forEach((el) => {
-          const text = el.textContent.trim();
-          if (text.length < 2) return;
-          // Alternate roles based on position
-          const role = (lastRole === 'user') ? 'assistant' : 'user';
-          messages.push({ role, content: text });
-          lastRole = role;
-        });
-        if (messages.length > 0) {
-          console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 3 (fallback)');
-          return messages;
-        }
+      // Strategy 3: Fallback — grab all visible paragraph texts
+      const paragraphs = document.querySelectorAll('p');
+      paragraphs.forEach((p) => {
+        const text = p.innerText?.trim();
+        if (!text || text.length < 5) return;
+        const style = window.getComputedStyle(p);
+        if (style.display === 'none' || style.visibility === 'hidden') return;
+        const role = messages.length % 2 === 0 ? 'user' : 'assistant';
+        messages.push({ role, content: text });
+      });
+      if (messages.length > 0) {
+        console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 3 (paragraph fallback)');
+        return messages;
       }
 
       console.log('[AI Arena] Kimi extractConversation: no messages found');
@@ -120,12 +141,7 @@
   // Layout Adjustment
   // ───────────────────────────────────────────────
   function findMainElement() {
-    const selectors = [
-      'main',
-      '[class*="main-content"]',
-      '[class*="chat-page"]',
-      '#app',
-    ];
+    const selectors = ['main', '[class*="main-content"]', '[class*="chat-page"]', '#app'];
     for (const s of selectors) {
       const el = document.querySelector(s);
       if (el) return el;
@@ -182,7 +198,9 @@
       try {
         targetElement = document.querySelector(selector);
         if (targetElement) break;
-      } catch (e) { /* skip invalid selector */ }
+      } catch (e) {
+        /* skip invalid selector */
+      }
     }
 
     if (!targetElement) {
