@@ -9,6 +9,12 @@
 (function () {
   'use strict';
 
+  // Skip if running inside an iframe (panel mode)
+  if (window.self !== window.top) {
+    console.log('[AI Arena] Doubao host adapter skipped in iframe');
+    return;
+  }
+
   console.log('[AI Arena] Doubao host adapter loading');
 
   const INJECTION_DELAY_MS = 2000;
