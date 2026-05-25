@@ -29,32 +29,60 @@
       const messages = [];
 
       // Strategy 1: Kimi message items with data attributes
-      const messageItems = document.querySelectorAll('[data-testid*="message"], [class*="message-item"], [class*="chat-message"]');
+      const messageItems = document.querySelectorAll('[data-testid*="message"], [class*="message-item"], [class*="chat-message"], [class*="chat-turn"]');
       if (messageItems.length > 0) {
         messageItems.forEach((el) => {
           const isUser = el.getAttribute('data-testid')?.includes('user') ||
-                         el.querySelector('img[alt*="User"], [class*="avatar-user"], [class*="user"]') !== null;
+                         el.querySelector('img[alt*="User"], [class*="avatar-user"], [class*="user"], [class*="human"]') !== null ||
+                         el.className.includes('user') || el.className.includes('human') || el.className.includes('right');
           const role = isUser ? 'user' : 'assistant';
-          const textEl = el.querySelector('.markdown, [class*="content"], [class*="text"], p');
+          const textEl = el.querySelector('.markdown, [class*="content"], [class*="text"], [class*="answer"], [class*="response"], p, div');
           if (textEl) {
             const content = textEl.textContent.trim();
             if (content) messages.push({ role, content });
           }
         });
-        return messages;
+        if (messages.length > 0) {
+          console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 1');
+          return messages;
+        }
       }
 
       // Strategy 2: Generic article/message containers
-      const articles = document.querySelectorAll('article, [class*="message"], [class*="bubble"]');
+      const articles = document.querySelectorAll('article, [class*="message"], [class*="bubble"], [class*="turn"]');
       articles.forEach((article) => {
-        const isUser = article.querySelector('img[alt*="User"], [class*="user"]') !== null ||
-                       article.classList.contains('user');
+        const isUser = article.querySelector('img[alt*="User"], [class*="user"], [class*="human"]') !== null ||
+                       article.classList.contains('user') || article.className.includes('human');
         const role = isUser ? 'user' : 'assistant';
-        const textEls = article.querySelectorAll('.markdown, p, [class*="text"]');
+        const textEls = article.querySelectorAll('.markdown, p, [class*="text"], div');
         const content = Array.from(textEls).map(el => el.textContent.trim()).join('\n');
         if (content) messages.push({ role, content });
       });
+      if (messages.length > 0) {
+        console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 2');
+        return messages;
+      }
 
+      // Strategy 3: Fallback — collect all visible text blocks in the main chat area
+      const chatContainer = document.querySelector('main, [class*="chat"], [class*="conversation"], [class*="dialog"]');
+      if (chatContainer) {
+        const textBlocks = chatContainer.querySelectorAll('p, div > div, [class*="text"]');
+        let lastRole = null;
+        textBlocks.forEach((el) => {
+          const text = el.textContent.trim();
+          if (text.length < 2) return;
+          // Alternate roles based on position
+          const role = (lastRole === 'user') ? 'assistant' : 'user';
+          messages.push({ role, content: text });
+          lastRole = role;
+        });
+        if (messages.length > 0) {
+          console.log('[AI Arena] Kimi extracted', messages.length, 'messages via strategy 3 (fallback)');
+          return messages;
+        }
+      }
+
+      console.log('[AI Arena] Kimi extractConversation: no messages found');
       return messages;
     } catch (e) {
       console.error('[AI Arena] Error extracting conversation from Kimi:', e);
