@@ -11,7 +11,7 @@
 
   console.log('[AI Arena] Doubao content script loaded');
 
-  const SUBMIT_DELAY_MS = 500;
+  const SUBMIT_DELAY_MS = 600;
   const RETRY_INTERVAL_MS = 2000;
 
   let pendingPrompt = null;
@@ -22,65 +22,157 @@
   function findInputElement() {
     const selectors = [
       'textarea.semi-input-textarea',
-      'textarea[placeholder="发消息..."]',
+      'textarea[placeholder*="消息"]',
+      'textarea[placeholder*="输入"]',
       'textarea',
+      '[contenteditable="true"]',
+      '[role="textbox"]',
+      '.semi-input-textarea',
+      '[class*="input"] textarea',
     ];
     for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      if (el) return el;
+      try {
+        const el = document.querySelector(selector);
+        if (el && isVisible(el)) return el;
+      } catch (e) { /* skip invalid selector */ }
     }
     return null;
   }
 
+  function isVisible(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
   function findSendButton() {
+    // Strategy 1: aria-label / title containing send-related text
+    const sendLabels = ['发送', 'send', 'submit', 'arrow'];
     const allButtons = document.querySelectorAll('button');
     for (const btn of allButtons) {
-      const svg = btn.querySelector('svg');
-      if (!svg) continue;
-      const path = svg.querySelector('path');
-      if (!path) continue;
-      const d = path.getAttribute('d') || '';
-      // Doubao send button SVG contains this characteristic path
-      if (d.includes('20.7505') || d.includes('11.1948')) {
+      const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+      const title = (btn.getAttribute('title') || '').toLowerCase();
+      const className = (btn.className || '').toLowerCase();
+      if (sendLabels.some(l => ariaLabel.includes(l) || title.includes(l) || className.includes(l))) {
+        if (isVisible(btn)) return btn;
+      }
+    }
+
+    // Strategy 2: class name containing "send"
+    const sendBtn = document.querySelector('button[class*="send"], button[class*="submit"]');
+    if (sendBtn && isVisible(sendBtn)) return sendBtn;
+
+    // Strategy 3: button near the input area that is not disabled
+    const input = findInputElement();
+    if (input) {
+      let parent = input.parentElement;
+      for (let i = 0; i < 6 && parent; i++) {
+        const btns = parent.querySelectorAll('button');
+        for (const btn of btns) {
+          if (!btn.disabled && isVisible(btn)) return btn;
+        }
+        parent = parent.parentElement;
+      }
+    }
+
+    // Strategy 4: any visible button with an SVG icon (likely the send button)
+    for (const btn of allButtons) {
+      if (btn.querySelector('svg') && !btn.disabled && isVisible(btn)) {
         return btn;
       }
     }
+
     return null;
   }
 
   /**
-   * Simulate typing text character by character.
-   * Doubao uses Semi Design TextArea (React-based) which requires
-   * full keyboard event sequence to update internal state properly.
+   * Set input text using the most reliable method for the element type.
+   */
+  function setInputText(element, text) {
+    if (!element) return false;
+    element.focus();
+
+    if (element.isContentEditable) {
+      element.innerHTML = '';
+      const p = document.createElement('p');
+      p.textContent = text;
+      element.appendChild(p);
+
+      element.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: text,
+      }));
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+      // Use native value setter to bypass React's synthetic event system
+      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+      if (nativeTextAreaValueSetter) {
+        nativeTextAreaValueSetter.call(element, text);
+      } else {
+        element.value = text;
+      }
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return true;
+  }
+
+  /**
+   * Fallback: simulate typing character by character.
+   * Some React-based inputs need full keyboard event sequence.
    */
   function simulateTyping(element, text) {
     if (!element) return false;
 
     element.focus();
-    element.select();
+    if (element.select) element.select();
 
     // Clear existing content
-    document.execCommand('delete', false);
+    try {
+      document.execCommand('selectAll', false);
+      document.execCommand('delete', false);
+    } catch (e) {
+      if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+        element.value = '';
+      } else if (element.isContentEditable) {
+        element.innerHTML = '';
+      }
+    }
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
+      const code = char.charCodeAt(0);
 
       // Keydown
       element.dispatchEvent(new KeyboardEvent('keydown', {
         key: char,
         code: 'Key' + (char.match(/[a-zA-Z]/) ? char.toUpperCase() : char),
-        keyCode: char.charCodeAt(0),
-        which: char.charCodeAt(0),
+        keyCode: code,
+        which: code,
         bubbles: true,
         cancelable: true,
       }));
 
       // Insert the character
-      const start = element.selectionStart || 0;
-      const end = element.selectionEnd || 0;
-      const value = element.value || '';
-      element.value = value.slice(0, start) + char + value.slice(end);
-      element.selectionStart = element.selectionEnd = start + 1;
+      if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+        const start = element.selectionStart || 0;
+        const end = element.selectionEnd || 0;
+        const value = element.value || '';
+        element.value = value.slice(0, start) + char + value.slice(end);
+        element.selectionStart = element.selectionEnd = start + 1;
+      } else if (element.isContentEditable) {
+        document.execCommand('insertText', false, char);
+      }
 
       // Input event
       element.dispatchEvent(new InputEvent('input', {
@@ -94,15 +186,16 @@
       element.dispatchEvent(new KeyboardEvent('keyup', {
         key: char,
         code: 'Key' + (char.match(/[a-zA-Z]/) ? char.toUpperCase() : char),
-        keyCode: char.charCodeAt(0),
-        which: char.charCodeAt(0),
+        keyCode: code,
+        which: code,
         bubbles: true,
         cancelable: true,
       }));
     }
 
-    // Final change event
+    // Final change/composition event
     element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new Event('compositionend', { bubbles: true }));
 
     return true;
   }
@@ -115,7 +208,17 @@
       return false;
     }
 
-    const success = simulateTyping(input, text);
+    console.log('[AI Arena] Found Doubao input:', input.tagName, input.className?.slice(0, 50));
+
+    // Try simple text setting first (fastest and most reliable)
+    let success = setInputText(input, text);
+
+    // Fallback to simulated typing if simple method didn't work
+    if (!success || !input.value && !input.innerText) {
+      console.log('[AI Arena] Simple input failed, trying simulated typing');
+      success = simulateTyping(input, text);
+    }
+
     if (!success) return false;
 
     console.log('[AI Arena] Text set in input, waiting for submit...');
@@ -123,14 +226,24 @@
     setTimeout(() => {
       const sendBtn = findSendButton();
       if (sendBtn) {
+        console.log('[AI Arena] Found send button, clicking:', sendBtn.className?.slice(0, 50));
         sendBtn.click();
         console.log('[AI Arena] Prompt submitted to Doubao via click');
         showNotification('豆包分析已发送！');
       } else {
         // Fallback: try Enter key
+        console.log('[AI Arena] Send button not found, trying Enter key fallback');
         input.dispatchEvent(new KeyboardEvent('keydown', {
           key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
-          bubbles: true, cancelable: true,
+          bubbles: true, cancelable: true, composed: true,
+        }));
+        input.dispatchEvent(new KeyboardEvent('keypress', {
+          key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+          bubbles: true, cancelable: true, composed: true,
+        }));
+        input.dispatchEvent(new KeyboardEvent('keyup', {
+          key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+          bubbles: true, cancelable: true, composed: true,
         }));
       }
     }, SUBMIT_DELAY_MS);
