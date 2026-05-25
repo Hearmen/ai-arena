@@ -141,12 +141,22 @@
   // Layout Adjustment
   // ───────────────────────────────────────────────
   function findMainElement() {
-    const selectors = ['main', '[class*="main-content"]', '[class*="chat-page"]', '#app'];
+    const selectors = [
+      'main',
+      '[class*="main-content"]',
+      '[class*="chat-page"]',
+      '#app',
+      '#root > div',
+      '[class*="layout"]',
+      '[class*="container"]',
+    ];
     for (const s of selectors) {
-      const el = document.querySelector(s);
-      if (el) return el;
+      try {
+        const el = document.querySelector(s);
+        if (el) return el;
+      } catch (e) { /* skip invalid selector */ }
     }
-    return null;
+    return document.body;
   }
 
   function adjustLayout(panelOpen, width) {
@@ -155,12 +165,19 @@
       console.log('[AI Arena] Could not find Kimi main element');
       return;
     }
+
+    // Try marginRight first (works for most flex/grid layouts)
     if (panelOpen) {
       kimiMainEl.style.marginRight = width + 'px';
-      kimiMainEl.style.transition = 'margin-right 0.3s ease';
     } else {
       kimiMainEl.style.marginRight = '0px';
-      kimiMainEl.style.transition = 'margin-right 0.3s ease';
+    }
+    kimiMainEl.style.transition = 'margin-right 0.3s ease';
+
+    // Also adjust body as fallback so the fixed panel never overlaps
+    if (kimiMainEl === document.body) {
+      document.documentElement.style.marginRight = panelOpen ? width + 'px' : '0px';
+      document.documentElement.style.transition = 'margin-right 0.3s ease';
     }
   }
 
